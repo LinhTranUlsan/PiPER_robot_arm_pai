@@ -1,0 +1,13 @@
+[build-system]
+requires = ["setuptools>=64"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "lerobot_robot_piper_bimanual"
+version = "0.1.0"
+description = "LeRobot robot plugin: two AgileX PiPER master-follower clusters (one CAN bus each) as a single bimanual robot."
+requires-python = ">=3.12"
+dependencies = ["piper_sdk", "python-can", "lerobot_robot_piper_bus"]
+
+[tool.setuptools.packages.find]
+include = ["lerobot_robot_piper_bimanual*"]

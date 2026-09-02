@@ -1,0 +1,258 @@
+{
+  "task": "Piper-PickPlace-Play-v0",
+  "joint_names": [
+    "joint1",
+    "joint2",
+    "joint3",
+    "joint4",
+    "joint5",
+    "joint6",
+    "gripper_joint1",
+    "gripper_joint2"
+  ],
+  "default_joint_pos": [
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.03500000014901161,
+    -0.03500000014901161
+  ],
+  "default_joint_vel": [
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0
+  ],
+  "joint_pos_limits": [
+    [
+      -2.6179935932159424,
+      2.6179935932159424
+    ],
+    [
+      0.0,
+      3.141592264175415
+    ],
+    [
+      -2.967059373855591,
+      0.0
+    ],
+    [
+      -1.7453290224075317,
+      1.7453290224075317
+    ],
+    [
+      -1.221730351448059,
+      1.221730351448059
+    ],
+    [
+      -2.094395160675049,
+      2.094395160675049
+    ],
+    [
+      0.0,
+      0.05000000074505806
+    ],
+    [
+      -0.05000000074505806,
+      0.0
+    ]
+  ],
+  "body_names": [
+    "world",
+    "base_link",
+    "link1",
+    "link2",
+    "link3",
+    "link4",
+    "link5",
+    "link6",
+    "gripper_base",
+    "camera_stand_link",
+    "gripper_link1",
+    "gripper_link2",
+    "camera_link"
+  ],
+  "observation": {
+    "total_dim": 33,
+    "terms": [
+      {
+        "name": "joint_pos",
+        "dim": 8,
+        "slice": [
+          0,
+          8
+        ]
+      },
+      {
+        "name": "joint_vel",
+        "dim": 8,
+        "slice": [
+          8,
+          16
+        ]
+      },
+      {
+        "name": "object_position",
+        "dim": 3,
+        "slice": [
+          16,
+          19
+        ]
+      },
+      {
+        "name": "target_object_position",
+        "dim": 7,
+        "slice": [
+          19,
+          26
+        ]
+      },
+      {
+        "name": "actions",
+        "dim": 7,
+        "slice": [
+          26,
+          33
+        ]
+      }
+    ]
+  },
+  "action": {
+    "total_dim": 7,
+    "terms": [
+      {
+        "name": "arm_action",
+        "dim": 6,
+        "class": "JointPositionAction",
+        "joint_names": [
+          "joint1",
+          "joint2",
+          "joint3",
+          "joint4",
+          "joint5",
+          "joint6"
+        ],
+        "scale": [
+          0.5
+        ],
+        "offset": [
+          0.0,
+          1.2000000476837158,
+          -1.2000000476837158,
+          0.0,
+          0.4000000059604645,
+          0.0
+        ]
+      },
+      {
+        "name": "gripper_action",
+        "dim": 1,
+        "class": "BinaryJointPositionAction",
+        "joint_names": [
+          "gripper_joint1",
+          "gripper_joint2"
+        ],
+        "open_command": [
+          0.03500000014901161,
+          -0.03500000014901161
+        ],
+        "close_command": [
+          0.0,
+          0.0
+        ]
+      }
+    ]
+  },
+  "command": {
+    "name": "object_pose",
+    "ranges": {
+      "x": [
+        0.474,
+        0.502
+      ],
+      "y": [
+        0.327,
+        0.35500000000000004
+      ],
+      "z": [
+        0.025,
+        0.025
+      ]
+    },
+    "center": [
+      0.488,
+      0.341,
+      0.025
+    ],
+    "half_span": [
+      0.014000000000000012,
+      0.014000000000000012,
+      0.0
+    ]
+  },
+  "place": {
+    "tol": 0.05,
+    "grasp_dist": 0.04,
+    "gripper_open_frac": 0.75,
+    "retreat_dist": 0.06,
+    "lift_clear": 0.03
+  },
+  "bin": {
+    "cx": 0.488,
+    "cy": 0.341,
+    "inner": 0.14,
+    "rim_top": 0.056,
+    "floor_top": 0.006,
+    "rest_z": 0.019
+  },
+  "real_home_joint_pos": [
+    -0.002,
+    0.012,
+    -0.011,
+    0.021,
+    0.345,
+    -0.03
+  ],
+  "park_joint_pos": [
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.5235988,
+    0.0
+  ],
+  "clip_actions": 5.0,
+  "object_spawn": {
+    "x": [
+      0.363,
+      0.493
+    ],
+    "y": [
+      -0.065,
+      0.165
+    ],
+    "z_spawn": 0.031,
+    "grip_width_range": [
+      0.038,
+      0.038
+    ],
+    "object_half_heights": [
+      0.019
+    ],
+    "z_rest": 0.019
+  },
+  "control": {
+    "sim_dt": 0.01,
+    "decimation": 2,
+    "control_dt": 0.02,
+    "control_hz": 50.0,
+    "episode_length_s": 12.0
+  }
+}

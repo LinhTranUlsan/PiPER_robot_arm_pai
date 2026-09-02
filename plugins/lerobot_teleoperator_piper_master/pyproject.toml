@@ -1,0 +1,13 @@
+[build-system]
+requires = ["setuptools>=64"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "lerobot_teleoperator_piper_master"
+version = "0.1.0"
+description = "LeRobot teleoperator plugin: read an AgileX PiPER master arm's joint-control frames off a shared CAN bus."
+requires-python = ">=3.12"
+dependencies = ["piper_sdk", "python-can"]
+
+[tool.setuptools.packages.find]
+include = ["lerobot_teleoperator_piper_master*"]

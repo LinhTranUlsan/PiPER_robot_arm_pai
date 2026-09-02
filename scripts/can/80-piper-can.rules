@@ -1,0 +1,27 @@
+# Pin each gs_usb CAN adapter to a stable name by USB serial.
+#
+# WHY THIS EXISTS
+# The kernel names gs_usb interfaces can0, can1, ... in USB enumeration order, which is
+# not deterministic. `fix_can.sh` reloads the gs_usb driver, which re-enumerates BOTH
+# adapters -- so can0 and can1 can swap between runs. On a two-cluster rig that means
+# commands silently drive the wrong arm cluster, or a healthy cluster reports 0 fps.
+#
+# WHY NOT can0/can1
+# The kernel only ever auto-assigns names matching canN. Renaming into that namespace can
+# collide with a name the kernel already handed to the other adapter (EEXIST), and udev
+# processes devices in arbitrary order. can_left / can_right sit outside canN, so a
+# collision is impossible by construction.
+#
+# WHY SERIAL, NOT by-path
+# These candleLight adapters DO report a unique USB serial (unlike this rig's RealSense
+# cameras, which report none and therefore have to use by-path -- see TROUBLESHOOTING.md).
+# Matching on serial means the name follows the adapter even if you move its USB cable.
+#
+# TO ADD OR REPLACE AN ADAPTER
+#   udevadm info -p /sys/class/net/<iface> | grep ID_SERIAL_SHORT
+# then add a line below and re-run scripts/can/install_udev.sh.
+#
+# Install:  sudo bash scripts/can/install_udev.sh
+
+SUBSYSTEM=="net", ACTION=="add", ENV{ID_NET_DRIVER}=="gs_usb", ENV{ID_SERIAL_SHORT}=="REPLACE-WITH-YOUR-ADAPTER-SERIAL", NAME="can_left"
+SUBSYSTEM=="net", ACTION=="add", ENV{ID_NET_DRIVER}=="gs_usb", ENV{ID_SERIAL_SHORT}=="REPLACE-WITH-YOUR-ADAPTER-SERIAL", NAME="can_right"

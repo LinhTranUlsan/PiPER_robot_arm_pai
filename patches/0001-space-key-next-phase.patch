@@ -1,0 +1,35 @@
+diff --git a/src/lerobot/utils/keyboard_input.py b/src/lerobot/utils/keyboard_input.py
+index 00c0f53e..2fd35448 100644
+--- a/src/lerobot/utils/keyboard_input.py
++++ b/src/lerobot/utils/keyboard_input.py
+@@ -407,8 +407,10 @@ def init_keyboard_listener():
+     * otherwise no listener (non-interactive / piped runs) — recording relies on
+       the episode/reset timers (or Ctrl+C).
+ 
+-    Both backends accept the same controls: Right/Left/Esc, plus the single-byte letter
+-    equivalents ``n`` (next), ``r`` (re-record) and ``q`` (quit). The letters are the most
++    Both backends accept the same controls: Right/Left/Esc, plus Space and the single-byte
++    letter equivalents ``n`` (next), ``r`` (re-record) and ``q`` (quit). Space is bound to
++    "next" so a single key can toggle between recording an episode and the (unrecorded)
++    reset phase that follows it. The letters are the most
+     reliable choice over high-latency SSH/VNC links, where arrow-key escape sequences can
+     be split, delayed, or intercepted by the terminal.
+ 
+@@ -428,7 +430,7 @@ def init_keyboard_listener():
+     # over laggy SSH/VNC links. Case-insensitive so Shift+letter still works.
+     def on_key(name: str) -> None:
+         key = name.lower()
+-        if key in ("right", "n"):
++        if key in ("right", "n", "space"):
+             apply_recording_control("right", events)
+         elif key in ("left", "r"):
+             apply_recording_control("left", events)
+@@ -436,5 +438,7 @@ def init_keyboard_listener():
+             apply_recording_control("esc", events)
+         # other keys (incl. up/down) are intentionally ignored
+ 
+-    listener = create_key_listener(on_key, controls_help="Right/Left/Esc, or n=next, r=re-record, q=quit")
++    listener = create_key_listener(
++        on_key, controls_help="Right/Space/Left/Esc, or n=next, r=re-record, q=quit"
++    )
+     return listener, events
