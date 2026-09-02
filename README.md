@@ -581,6 +581,8 @@ Run one cluster at a time from two terminals, each with its own variables and it
 
 ## Licence and credits
 
+This repository is Apache-2.0 (see `LICENSE`), matching LeRobot, which its plugins subclass.
+
 LeRobot is Apache-2.0 (https://github.com/huggingface/lerobot).
 `piper_sdk` is MIT, by AgileX Robotics (https://github.com/agilexrobotics/piper_sdk).
 Neither is vendored here — `install.sh` clones both at pinned commits.
