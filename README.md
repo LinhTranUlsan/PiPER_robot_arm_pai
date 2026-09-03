@@ -254,7 +254,7 @@ not by device path. Only a change in a camera's *physical viewpoint* invalidates
 ```bash
 python scripts/check/motor_faults.py --can $CAN                     # 6/6 joints clean
 python scripts/check/preflight.py --teleop --can $CAN               # ALL PASS
-python scripts/can/send_probe.py --can $CAN --mode both --cameras   # CLEAN
+# python scripts/can/send_probe.py --can $CAN --mode both --cameras   # CLEAN
 ```
 
 | line to look for | meaning |
