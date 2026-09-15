@@ -48,8 +48,8 @@ sudo apt install -y git v4l-utils can-utils linux-tools-common linux-tools-$(una
 ## 0.2 Conda env
 
 ```bash
-conda create -y -n piper python=3.12          # LeRobot requires >= 3.12
-conda activate piper
+conda create -y -n piper_pai python=3.12      # LeRobot requires >= 3.12
+conda activate piper_pai
 conda install -y -c conda-forge ffmpeg        # 8.x -- torchcodec needs it to decode video
 ```
 
@@ -196,7 +196,7 @@ Must report **ALL PASS**, including `TX path healthy`.
 Run this at the start of **every** terminal. The variables live only in that shell.
 
 ```bash
-conda activate piper
+conda activate piper_pai
 cd ~/PiPER_robot_arm_pai
 
 source env.sh                                # camera paths -> $FRONT $WRIST_* $CAMS_*
@@ -267,13 +267,13 @@ python scripts/check/preflight.py --teleop --can $CAN               # ALL PASS
 `0x15x: 0/s` means **"master off OR powered and at rest"**. It does not prove the master is
 off — a teach-mode master is silent until touched. Check the switch by hand.
 
-## 1.6 Park to the demo start pose
+## 1.6 Park to the demo start pose (pass)
 
 ```bash
-python scripts/deploy/park_arm.py --can $CAN --spec $SPEC \
-       --pose 0 0.3 -0.3 1.4 19.9 -2.0 --dry-run     # preview, sends nothing
-python scripts/deploy/park_arm.py --can $CAN --spec $SPEC \
-       --pose 0 0.3 -0.3 1.4 19.9 -2.0
+# python scripts/deploy/park_arm.py --can $CAN --spec $SPEC \
+#        --pose 0 0.3 -0.3 1.4 19.9 -2.0 --dry-run     # preview, sends nothing
+# python scripts/deploy/park_arm.py --can $CAN --spec $SPEC \
+#        --pose 0 0.3 -0.3 1.4 19.9 -2.0
 ```
 
 `worst joint error` must be **< 0.01 rad**. Then press **Ctrl+C immediately**.
@@ -462,7 +462,7 @@ Wait 10 s -- a controller that is not ready yet is enough to bus-off the line
 ## 2.1 Open the session
 
 ```bash
-conda activate piper
+conda activate piper_pai
 cd ~/PiPER_robot_arm_pai
 
 source env.sh                                # camera paths
