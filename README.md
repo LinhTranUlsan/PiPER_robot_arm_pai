@@ -5,58 +5,6 @@ Imitation learning on AgileX PiPER arms: **record → train → rollout**.
 LeRobot plugins (`piper_bus` robot, `piper_master` teleoperator) plus the CAN, camera, and
 preflight tooling needed to run them on real hardware.
 
-## Quick start
-
-```bash
-git clone https://github.com/LinhTranUlsan/PiPER_robot_arm_pai.git
-cd PiPER_robot_arm_pai
-
-conda create -y -n piper_pai python=3.12 && conda activate piper_pai
-conda install -y -c conda-forge ffmpeg
-bash scripts/setup/install.sh --bimanual        # drop --bimanual for a single-arm rig
-```
-
-Then one of these two. **Same machine as a checkout that already works** — this is the fast
-path, and it skips the camera work entirely:
-
-```bash
-bash scripts/setup/bootstrap.sh --from /path/to/that/checkout
-```
-
-**A machine being set up for the first time:**
-
-```bash
-bash scripts/setup/bootstrap.sh                 # CAN serials + env templates
-python scripts/setup/identify_cameras.py        # shake each arm; it names the cameras
-python scripts/setup/detect_cameras.py --front F --wrist-right R --wrist-left L --write
-# 4th camera? put its by-path into ALL= in env_all.sh
-bash scripts/setup/bootstrap.sh                 # run again to re-verify
-```
-
-Either way, **wait for `== READY ==`** before going further:
-
-```
-== 3. Verify ==
-   FRONT        ok
-   WRIST_RIGHT  ok
-   WRIST_LEFT   ok
-   ALL          ok
-   CAN_LEFT     -> can_left
-   CAN_RIGHT    -> can_right
-
-== READY ==
-```
-
-Then every session starts the same way:
-
-```bash
-source env_all.sh && source scripts/can/can_env.sh
-python scripts/check/preflight.py --teleop --can $CAN_RIGHT     # must be ALL PASS
-```
-
-Record → train → rollout is PART 1 for one arm, PART 3.2 for both. PART 0 has the rest of
-first-time setup: CPU governor, USB layout, and the CAN wiring rules.
-
 ```
 PiPER_robot_arm_pai/
 ├── plugins/            piper_bus · piper_master (+ 2 bimanual)
@@ -120,6 +68,7 @@ git clone https://github.com/LinhTranUlsan/PiPER_robot_arm_pai.git
 cd PiPER_robot_arm_pai
 
 bash scripts/setup/install.sh                 # ACT + Diffusion Policy
+bash scripts/setup/bootstrap.sh --from /home/pai/linh/PiPER/lerobot/piper
 # bash scripts/setup/install.sh --pi0         # also pi0 (VLA)
 # bash scripts/setup/install.sh --pinned      # exact versions from requirements-pinned.txt
 # bash scripts/setup/install.sh --bimanual    # also the two-cluster plugins
