@@ -9,7 +9,8 @@ preflight tooling needed to run them on real hardware.
 PiPER_robot_arm_pai/
 ├── plugins/            piper_bus · piper_master (+ 2 bimanual)
 ├── scripts/
-│   ├── setup/          install.sh · detect_cameras.py · identify_cameras.py · set_cpu_performance.sh
+│   ├── setup/          install.sh · bootstrap.sh · detect_cameras.py · identify_cameras.py
+│   │                   set_cpu_performance.sh
 │   ├── can/            fix_can.sh · can_env.sh · bus_scan.py · send_probe.py · tx_stress.py
 │   ├── check/          preflight.py · motor_faults.py · joint_limits.py · powerup_trace.py
 │   │                   check_dataset.py · check_dataset_multi.py · check_dataset_bimanual.py
@@ -17,7 +18,7 @@ PiPER_robot_arm_pai/
 │   │                   compare_arms.py · compare_firmware.py
 │   └── deploy/         park_arm.py
 ├── patches/            one patch applied to the LeRobot checkout
-├── env.sh.example      camera paths template -> copy to env.sh
+├── env.sh.example      camera paths template -> bootstrap.sh copies it to env.sh
 ├── env_all.sh.example  optional 4th "overview" camera -> copy to env_all.sh
 ├── deploy_spec.json    joint names, limits, named poses
 └── requirements-pinned.txt
@@ -78,6 +79,23 @@ and verifies LeRobot discovers them. It writes nothing outside the active conda 
 those two clones.
 
 Put LeRobot elsewhere: `LEROBOT_DIR=/your/path bash scripts/setup/install.sh`
+
+### Then bootstrap this machine
+
+```bash
+bash scripts/setup/bootstrap.sh
+```
+
+Three files are gitignored because each describes one machine: `env.sh` and `env_all.sh`
+(camera `by-path`s, which embed the PCI id and every USB port) and the CAN adapter serials.
+A fresh clone has none of them, which is why `source env_all.sh` fails right after cloning.
+
+`bootstrap.sh` creates them from what is actually plugged in: it reads each CAN adapter's
+USB serial and writes it into `env_all.sh`, and copies both env files from their templates.
+It never overwrites a file you already have, so it is safe to re-run.
+
+Camera **roles** it cannot do for you — only shaking an arm distinguishes a wrist camera
+from a fixed one. It stops and hands you that command; see 0.7.
 
 It must end with:
 
