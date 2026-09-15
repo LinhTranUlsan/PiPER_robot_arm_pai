@@ -17,6 +17,18 @@
 # below by hand if this camera moves port. Find it with:
 #     python piper/scripts/setup/detect_cameras.py
 
+# Pull in env.sh first if it has not been sourced yet, so one line is enough:
+#     source env_all.sh
+_here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+if [ -z "$FRONT" ]; then
+    if [ -f "$_here/env.sh" ]; then
+        . "$_here/env.sh"
+    else
+        echo "  ERROR: $_here/env.sh not found -- run detect_cameras.py --write first" >&2
+    fi
+fi
+unset _here
+
 export ALL="/dev/v4l/by-path/REPLACE-ME-video-index0"
 
 _cam() { printf '%s: {type: opencv, index_or_path: %s, width: 640, height: 480, fps: 30}' "$1" "$2"; }

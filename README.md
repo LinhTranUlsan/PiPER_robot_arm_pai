@@ -190,8 +190,13 @@ A camera facing the rig from opposite `front`, seeing both arms and the box at o
 cp env_all.sh.example env_all.sh
 python scripts/setup/detect_cameras.py          # find its by-path
 # put that by-path into ALL= in env_all.sh, then:
-source env.sh && source env_all.sh              # adds $ALL and $CAMS_*_ALL
+source env_all.sh                               # sources env.sh itself, then adds $ALL
 ```
+
+`env_all.sh` sources `env.sh` from the same directory when `$FRONT` is unset, so one line
+covers both. The rest of this README sources `env_all.sh` and uses `$CAMS_*_ALL`; every one
+of those blocks carries the plain `$CAMS_*` variant commented out directly beneath, so a rig
+without the 4th camera is a one-line change.
 
 | variable | cameras | streams |
 |---|---|---|
@@ -209,7 +214,7 @@ truncated frames** — the 4th costs nothing. Still a USB 3.0 hub, still no CAN 
 ## 0.8 Acceptance
 
 ```bash
-source env.sh && source scripts/can/can_env.sh
+source env_all.sh && source scripts/can/can_env.sh
 python scripts/check/preflight.py --teleop --can $CAN_RIGHT
 ```
 
@@ -227,12 +232,14 @@ Run this at the start of **every** terminal. The variables live only in that she
 conda activate piper_pai
 cd ~/PiPER_robot_arm_pai
 
-source env.sh                                # camera paths -> $FRONT $WRIST_* $CAMS_*
+source env_all.sh                            # pulls in env.sh, then adds $ALL + $CAMS_*_ALL
+# source env.sh                              # use this instead if you have no 4th camera
 source scripts/can/can_env.sh                # CAN adapters by USB serial -> $CAN_LEFT $CAN_RIGHT
 
 export CAN_PORT=$CAN_RIGHT                   # park_arm.py reads this
 CAN=$CAN_PORT
-CAMS="$CAMS_RIGHT"                           # front + wrist_right
+CAMS="$CAMS_RIGHT_ALL"                       # front + wrist_right + all
+# CAMS="$CAMS_RIGHT"                         # front + wrist_right, no 4th camera
 SPEC=deploy_spec.json                        # park_arm.py always opens this
 TASK="pick the cube and place it"
 
@@ -246,7 +253,7 @@ For the LEFT cluster, change two lines only:
 
 ```bash
 export CAN_PORT=$CAN_LEFT
-CAMS="$CAMS_LEFT"
+CAMS="$CAMS_LEFT_ALL"
 ```
 
 ## 1.2 Power-on order
@@ -493,12 +500,13 @@ Wait 10 s -- a controller that is not ready yet is enough to bus-off the line
 conda activate piper_pai
 cd ~/PiPER_robot_arm_pai
 
-source env.sh                                # camera paths
+source env_all.sh                            # pulls in env.sh, then adds $ALL + $CAMS_*_ALL
+# source env.sh                              # use this instead if you have no 4th camera
 source scripts/can/can_env.sh                # prints CAN_LEFT / CAN_RIGHT
 
 export CAN_PORT=$CAN_RIGHT                   # park_arm.py reads this
 CAN=$CAN_PORT
-CAMS="$CAMS_RIGHT"
+CAMS="$CAMS_RIGHT_ALL"                       # must match what the dataset was recorded with
 SPEC=deploy_spec.json
 TASK="pick the cube and place it"
 
@@ -565,7 +573,7 @@ python scripts/check/motor_faults.py --can $CAN                # no joint faulte
 ```
 [ ] Master arm POWERED OFF -- by its switch, not by reading a script
 [ ] Waited 10 s after powering the follower on
-[ ] source env.sh  AND  source scripts/can/can_env.sh
+[ ] source env_all.sh  AND  source scripts/can/can_env.sh
 [ ] sudo bash scripts/can/fix_can.sh --can $CAN
 [ ] motor_faults  -> 6/6 clean
 [ ] preflight     -> ALL PASS, including "TX path healthy"
@@ -609,7 +617,7 @@ Two terminals, each with its own variables and its own `repo_id` / `output_dir`:
 # terminal RIGHT                          # terminal LEFT
 export CAN_PORT=$CAN_RIGHT                export CAN_PORT=$CAN_LEFT
 CAN=$CAN_PORT                             CAN=$CAN_PORT
-CAMS="$CAMS_RIGHT"                        CAMS="$CAMS_LEFT"
+CAMS="$CAMS_RIGHT_ALL"                    CAMS="$CAMS_LEFT_ALL"
 ```
 
 Everything in PART 1 then applies unchanged.
@@ -649,11 +657,11 @@ print(sorted(c for c in TeleoperatorConfig.get_known_choices() if 'piper' in c))
 
 ```bash
 conda activate piper_pai && cd ~/PiPER_robot_arm_pai
-source env.sh
-source env_all.sh                            # skip if you are not using the 4th camera
+source env_all.sh                            # pulls in env.sh, then adds $ALL + $CAMS_*_ALL
 source scripts/can/can_env.sh
 
-CAMS="$CAMS_BOTH_ALL"                        # or "$CAMS_BOTH" for 3 cameras
+CAMS="$CAMS_BOTH_ALL"                        # front + both wrists + all (4 streams)
+# CAMS="$CAMS_BOTH"                          # front + both wrists, no 4th camera
 SPEC=deploy_spec.json
 REPO=$USER/piper_bimanual
 TASK="right arm picks the red block into the box, then left arm picks the yellow block into the box"
