@@ -90,20 +90,40 @@ Three files are gitignored because each describes one machine: `env.sh` and `env
 (camera `by-path`s, which embed the PCI id and every USB port) and the CAN adapter serials.
 A fresh clone has none of them, which is why `source env_all.sh` fails right after cloning.
 
-`bootstrap.sh` creates them from what is actually plugged in: it reads each CAN adapter's
-USB serial and writes it into `env_all.sh`, and copies both env files from their templates.
-It never overwrites a file you already have, so it is safe to re-run.
-
-Camera **roles** it cannot do for you — only shaking an arm distinguishes a wrist camera
-from a fixed one. It stops and hands you that command; see 0.7.
-
-It must end with:
+`bootstrap.sh` reads each CAN adapter's USB serial straight from sysfs and records it, copies
+both env files from their templates, then **verifies** the result:
 
 ```
-robot  : ['piper_bus']
-teleop : ['piper_master']
-torch  : 2.11.0+cu130 | cuda True | sm_120
+== 3. Verify ==
+   FRONT        ok
+   WRIST_RIGHT  ok
+   WRIST_LEFT   ok
+   ALL          ok
+   CAN_LEFT     -> can_left
+   CAN_RIGHT    -> can_right
+
+== READY ==
 ```
+
+Anything short of `READY` names what is still missing and prints the command that fixes it.
+It exits non-zero in that case, so it can gate a setup script.
+
+Camera **roles** it cannot derive — only shaking an arm separates a wrist camera from a fixed
+one, so it stops and hands you the commands in 0.7.
+
+### Already have a working checkout on this machine
+
+Skip the camera work entirely:
+
+```bash
+bash scripts/setup/bootstrap.sh --from /path/to/that/checkout
+```
+
+It imports `env.sh` and `env_all.sh` from there, repoints `PIPER_REPO`, and rewrites the CAN
+serials for this machine.
+
+Re-running the script is always safe, and it is also the fix after you copy env files in by
+hand: that overwrites the serials it wrote, and running it again puts them back.
 
 ## 0.4 CPU governor — REQUIRED
 
