@@ -689,13 +689,13 @@ done
 `park_arm` or rollout left that arm in CAN control and its master-slave link will track
 poorly — power-cycle that follower.
 
-Do **not** park before recording, for the same reason. Nudge each master instead and check
+<!-- Do **not** park before recording, for the same reason. Nudge each master instead and check
 the follower has synced:
 
 ```bash
 python scripts/check/joint_limits.py --can $CAN_RIGHT   # "gap" column ~0
 python scripts/check/joint_limits.py --can $CAN_LEFT
-```
+``` -->
 
 ### RECORD (both masters POWERED ON)
 
