@@ -193,6 +193,12 @@ python scripts/setup/detect_cameras.py          # find its by-path
 source env_all.sh                               # sources env.sh itself, then adds $ALL
 ```
 
+**With a 4th camera, `identify_cameras.py` reports TWO cameras as `NO RESPONSE`** — the
+fixed `front` and the overview `all`, since neither rides on an arm. The script cannot tell
+them apart; open `camera_id_frames/` and decide by eye which view is which, then assign
+`--front` accordingly. `ALL` is never passed to `detect_cameras.py`: it lives only in
+`env_all.sh`.
+
 `env_all.sh` sources `env.sh` from the same directory when `$FRONT` is unset, so one line
 covers both. The rest of this README sources `env_all.sh` and uses `$CAMS_*_ALL`; every one
 of those blocks carries the plain `$CAMS_*` variant commented out directly beneath, so a rig

@@ -29,7 +29,7 @@ def main():
     ap.add_argument("--seconds", type=float, default=10.0)
     ap.add_argument("--fps", type=float, default=30.0)
     ap.add_argument("--cameras", action="store_true",
-                    help="stream $FRONT and $WRIST_RIGHT while probing, to reproduce the "
+                    help="stream every configured camera ($FRONT, $WRIST_*, $ALL) while probing, "
                          "USB load a real rollout puts on the host controller")
     a = ap.parse_args()
     port = a.can if a.can.startswith("can") else "can_" + a.can
@@ -57,10 +57,15 @@ def main():
     if a.cameras:
         import os, threading
         import cv2
-        for env in ("FRONT", "WRIST_RIGHT"):
+        # Every camera a real run opens, not a subset: this probe exists to reproduce the
+        # USB load under which the CAN adapter bus-offs, and two cameras do not load a bus
+        # that four will. WRIST_LEFT and ALL are skipped when unset.
+        wanted = [e for e in ("FRONT", "WRIST_RIGHT", "WRIST_LEFT", "ALL")
+                  if os.environ.get(e)]
+        if not wanted:
+            sys.exit("no camera variables set -- run: source env_all.sh")
+        for env in wanted:
             dev = os.environ.get(env)
-            if not dev:
-                sys.exit(f"${env} not set -- run: source piper/env.sh")
             c = cv2.VideoCapture(dev, cv2.CAP_V4L2)
             c.set(cv2.CAP_PROP_FRAME_WIDTH, 640)
             c.set(cv2.CAP_PROP_FRAME_HEIGHT, 480)

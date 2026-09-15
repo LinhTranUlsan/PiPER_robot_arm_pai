@@ -279,17 +279,24 @@ def check_cameras(port: str) -> None:
         return
     report(OK, f"found {len(cams)} colour cameras")
 
-    # One wrist camera per cluster, so which one to check follows --can.
+    # One wrist camera per cluster, so which one to check follows --can. $ALL is the
+    # optional overview camera from env_all.sh -- absent on a rig without one.
+    #
+    # Open every camera a run will actually use, not a subset: this check exists to catch a
+    # starved USB link, and two cameras cannot starve a link that four will. A probe lighter
+    # than the real load reports ALL PASS on a rig whose rollout still drops frames.
     wrist_var = "WRIST_LEFT" if port.endswith("left") else "WRIST_RIGHT"
-    wrist, front = os.environ.get(wrist_var), os.environ.get("FRONT")
-    if not (wrist and front):
+    wanted = [(wrist_var, os.environ.get(wrist_var)), ("FRONT", os.environ.get("FRONT"))]
+    if os.environ.get("ALL"):
+        wanted.append(("ALL", os.environ.get("ALL")))
+    if not all(path for _, path in wanted[:2]):
         report(WARN, f"{wrist_var}/FRONT variables not set",
                "python scripts/setup/identify_cameras.py     # which camera is which\n"
                "python scripts/setup/detect_cameras.py --front F --wrist-right R "
                "--wrist-left L --write\n"
-               "source env.sh")
+               "source env_all.sh")
         return
-    for label, path in ((wrist_var, wrist), ("FRONT", front)):
+    for label, path in wanted:
         if Path(path).exists():
             report(OK, f"{label} -> {Path(path).resolve()}")
         else:
@@ -299,7 +306,7 @@ def check_cameras(port: str) -> None:
     try:
         from lerobot.cameras.opencv import OpenCVCamera, OpenCVCameraConfig
         opened = []
-        for path in (wrist, front):
+        for _, path in wanted:
             c = OpenCVCamera(OpenCVCameraConfig(index_or_path=Path(path),
                                                 width=640, height=480, fps=30))
             c.connect(); opened.append(c)
@@ -316,14 +323,23 @@ def check_cameras(port: str) -> None:
                 rows = ((g > 100) & (r < 60) & (b < 60)).mean(axis=1)
                 worst = max(worst, int((rows > 0.9).sum()))
                 rows_total = a.shape[0]
-        fps = 30 / (time.perf_counter() - t0)
+        elapsed = time.perf_counter() - t0
         for c in opened:
             c.disconnect()
-        if fps >= 25:
-            report(OK, f"both cameras open simultaneously, {fps:.1f} fps each")
+        # This loop reads the cameras one after another, so what it can honestly measure is
+        # TOTAL reads per second, not each camera's own rate: adding a camera splits the
+        # same total further. Judge the total, and let the truncation check below be the
+        # real bandwidth verdict -- a starved link still reports 30 fps while delivering
+        # half a frame, which is exactly why that check exists.
+        reads = 30 * len(opened)
+        total = reads / elapsed
+        if total >= 40:
+            report(OK, f"{len(opened)} cameras open simultaneously, "
+                       f"{total:.0f} reads/s total ({total/len(opened):.1f} per camera)")
         else:
-            report(WARN, f"both cameras only reach {fps:.1f} fps",
-                   "USB bandwidth is short -- try a different USB3 port.")
+            report(WARN, f"{len(opened)} cameras: only {total:.0f} reads/s total",
+                   "Low throughput. If the truncated-frame check below passes, this is this\n"
+                   "loop's own overhead, not the bus. If it fails, the USB link is starved.")
         if worst:
             report(FAIL, f"TRUNCATED frames: {worst}/{rows_total} rows arrive as solid green",
                    "The USB link cannot carry these streams. Check the link speed:\n"
