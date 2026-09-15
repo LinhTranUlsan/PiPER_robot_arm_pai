@@ -20,12 +20,13 @@
 # Pull in env.sh first if it has not been sourced yet, so one line is enough:
 #     source env_all.sh
 _here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-if [ -z "$FRONT" ]; then
-    if [ -f "$_here/env.sh" ]; then
-        . "$_here/env.sh"
-    else
-        echo "  ERROR: $_here/env.sh not found -- run detect_cameras.py --write first" >&2
-    fi
+# Always re-source it, never "only if $FRONT is unset": a shell that once sourced a
+# not-yet-configured checkout carries FRONT=...REPLACE-ME... , and skipping the reload makes
+# that stale value outlive every later fix on disk. env.sh only exports, so reloading is free.
+if [ -f "$_here/env.sh" ]; then
+    . "$_here/env.sh"
+else
+    echo "  ERROR: $_here/env.sh not found -- run scripts/setup/bootstrap.sh first" >&2
 fi
 unset _here
 
