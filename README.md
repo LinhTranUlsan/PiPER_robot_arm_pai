@@ -13,14 +13,49 @@ cd PiPER_robot_arm_pai
 
 conda create -y -n piper_pai python=3.12 && conda activate piper_pai
 conda install -y -c conda-forge ffmpeg
-bash scripts/setup/install.sh                                  # LeRobot + SDK + plugins
-bash scripts/setup/bootstrap.sh                                # this machine's cameras + CAN
-# already have a working checkout on this machine? skip the camera work:
-# bash scripts/setup/bootstrap.sh --from /path/to/that/checkout
+bash scripts/setup/install.sh --bimanual        # drop --bimanual for a single-arm rig
 ```
 
-`bootstrap.sh` must end in **`== READY ==`** before anything else is run. It exits non-zero
-and names what is missing otherwise. Full detail in PART 0.
+Then one of these two. **Same machine as a checkout that already works** — this is the fast
+path, and it skips the camera work entirely:
+
+```bash
+bash scripts/setup/bootstrap.sh --from /path/to/that/checkout
+```
+
+**A machine being set up for the first time:**
+
+```bash
+bash scripts/setup/bootstrap.sh                 # CAN serials + env templates
+python scripts/setup/identify_cameras.py        # shake each arm; it names the cameras
+python scripts/setup/detect_cameras.py --front F --wrist-right R --wrist-left L --write
+# 4th camera? put its by-path into ALL= in env_all.sh
+bash scripts/setup/bootstrap.sh                 # run again to re-verify
+```
+
+Either way, **wait for `== READY ==`** before going further:
+
+```
+== 3. Verify ==
+   FRONT        ok
+   WRIST_RIGHT  ok
+   WRIST_LEFT   ok
+   ALL          ok
+   CAN_LEFT     -> can_left
+   CAN_RIGHT    -> can_right
+
+== READY ==
+```
+
+Then every session starts the same way:
+
+```bash
+source env_all.sh && source scripts/can/can_env.sh
+python scripts/check/preflight.py --teleop --can $CAN_RIGHT     # must be ALL PASS
+```
+
+Record → train → rollout is PART 1 for one arm, PART 3.2 for both. PART 0 has the rest of
+first-time setup: CPU governor, USB layout, and the CAN wiring rules.
 
 ```
 PiPER_robot_arm_pai/
