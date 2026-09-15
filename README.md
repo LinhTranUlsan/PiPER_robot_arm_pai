@@ -11,10 +11,14 @@ PiPER_robot_arm_pai/
 ├── scripts/
 │   ├── setup/          install.sh · detect_cameras.py · identify_cameras.py · set_cpu_performance.sh
 │   ├── can/            fix_can.sh · can_env.sh · bus_scan.py · send_probe.py · tx_stress.py
-│   ├── check/          preflight.py · motor_faults.py · check_dataset.py · check_smoothness.py
+│   ├── check/          preflight.py · motor_faults.py · joint_limits.py · powerup_trace.py
+│   │                   check_dataset.py · check_dataset_multi.py · check_dataset_bimanual.py
+│   │                   check_smoothness.py · check_smoothness_bimanual.py
+│   │                   compare_arms.py · compare_firmware.py
 │   └── deploy/         park_arm.py
 ├── patches/            one patch applied to the LeRobot checkout
 ├── env.sh.example      camera paths template -> copy to env.sh
+├── env_all.sh.example  optional 4th "overview" camera -> copy to env_all.sh
 ├── deploy_spec.json    joint names, limits, named poses
 └── requirements-pinned.txt
 ```
@@ -177,6 +181,30 @@ so shaking that arm moves the whole frame.
 `env.sh` is gitignored because `by-path` embeds this machine's PCI id and each camera's USB
 port. Re-run 0.7 whenever a camera changes port. **Each camera must stay in its assigned
 port** — label both ends of every cable.
+
+### Optional: a 4th "overview" camera
+
+A camera facing the rig from opposite `front`, seeing both arms and the box at once.
+
+```bash
+cp env_all.sh.example env_all.sh
+python scripts/setup/detect_cameras.py          # find its by-path
+# put that by-path into ALL= in env_all.sh, then:
+source env.sh && source env_all.sh              # adds $ALL and $CAMS_*_ALL
+```
+
+| variable | cameras | streams |
+|---|---|---|
+| `$CAMS_RIGHT` / `$CAMS_LEFT` / `$CAMS_BOTH` | unchanged, no overview camera | 2 / 2 / 3 |
+| `$CAMS_RIGHT_ALL` / `$CAMS_LEFT_ALL` | front + wrist + all | 3 |
+| `$CAMS_BOTH_ALL` | front + both wrists + all | 4 |
+
+It lives in a **separate file on purpose**: `detect_cameras.py --write` regenerates `env.sh`
+from scratch and only knows the three standard roles, so anything added there is wiped on the
+next run. The trade-off is that `ALL=` is updated by hand when that camera changes port.
+
+Measured on the reference rig: 3 and 4 cameras both sustain the same throughput with **zero
+truncated frames** — the 4th costs nothing. Still a USB 3.0 hub, still no CAN adapter on it.
 
 ## 0.8 Acceptance
 
@@ -573,9 +601,213 @@ python scripts/can/bus_scan.py 5 --can $CAN_RIGHT     # must be ~2420 fps
 
 Any traffic on the unpowered cluster's bus means they are still joined.
 
-Run one cluster at a time from two terminals, each with its own variables and its own
-`repo_id` / `output_dir`. For a single bimanual robot, install the extra plugins
-(`install.sh --bimanual`) and use `--robot.type=piper_bimanual` with `"$CAMS_BOTH"`.
+## 3.1 One cluster at a time
+
+Two terminals, each with its own variables and its own `repo_id` / `output_dir`:
+
+```bash
+# terminal RIGHT                          # terminal LEFT
+export CAN_PORT=$CAN_RIGHT                export CAN_PORT=$CAN_LEFT
+CAN=$CAN_PORT                             CAN=$CAN_PORT
+CAMS="$CAMS_RIGHT"                        CAMS="$CAMS_LEFT"
+```
+
+Everything in PART 1 then applies unchanged.
+
+---
+
+## 3.2 Bimanual — both clusters as one robot
+
+Use this when the task needs both arms in **one** dataset: they hand over an object, or they
+act in sequence and the policy must learn the order. Two single-arm datasets cannot express
+that — the timing between the arms is lost.
+
+`piper_bimanual` wraps two `piper_bus` instances and prefixes every key `left_` / `right_`,
+so the action vector is 14 wide: `left_joint_1.pos` … `left_gripper.pos`, then the same for
+`right_`. It adds no writes of its own; each cluster keeps its own firmware master-slave link.
+
+### Install the two extra plugins
+
+```bash
+bash scripts/setup/install.sh --bimanual        # or, if already installed:
+pip install -e plugins/lerobot_robot_piper_bimanual --no-deps
+pip install -e plugins/lerobot_teleoperator_piper_master_bimanual --no-deps
+```
+
+Verify — `piper_bimanual` and `piper_master_bimanual` must both appear:
+
+```bash
+cd /tmp && python -c "
+from lerobot.utils.import_utils import register_third_party_plugins; register_third_party_plugins()
+from lerobot.robots.config import RobotConfig
+from lerobot.teleoperators.config import TeleoperatorConfig
+print(sorted(c for c in RobotConfig.get_known_choices() if 'piper' in c))
+print(sorted(c for c in TeleoperatorConfig.get_known_choices() if 'piper' in c))"
+```
+
+### Open a session
+
+```bash
+conda activate piper_pai && cd ~/PiPER_robot_arm_pai
+source env.sh
+source env_all.sh                            # skip if you are not using the 4th camera
+source scripts/can/can_env.sh
+
+CAMS="$CAMS_BOTH_ALL"                        # or "$CAMS_BOTH" for 3 cameras
+SPEC=deploy_spec.json
+REPO=$USER/piper_bimanual
+TASK="right arm picks the red block into the box, then left arm picks the yellow block into the box"
+```
+
+### Power on and check BOTH clusters
+
+```
+Right cluster: follower ON -> wait 5 s -> master ON
+Left  cluster: follower ON -> wait 5 s -> master ON
+Wait another 10 s
+```
+
+```bash
+sudo bash scripts/can/fix_can.sh
+for C in $CAN_RIGHT $CAN_LEFT; do
+  echo "===== $C ====="
+  python scripts/can/bus_scan.py 5 --can $C            # 0x2A1 = 200/s on each
+  python scripts/check/motor_faults.py --can $C        # 6/6 clean, ctrl_mode STANDBY
+  python scripts/check/preflight.py --teleop --can $C  # ALL PASS
+done
+```
+
+`ctrl_mode : STANDBY(0x0)` is required before recording. `CAN_CTRL(0x1)` means a previous
+`park_arm` or rollout left that arm in CAN control and its master-slave link will track
+poorly — power-cycle that follower.
+
+Do **not** park before recording, for the same reason. Nudge each master instead and check
+the follower has synced:
+
+```bash
+python scripts/check/joint_limits.py --can $CAN_RIGHT   # "gap" column ~0
+python scripts/check/joint_limits.py --can $CAN_LEFT
+```
+
+### RECORD (both masters POWERED ON)
+
+```bash
+lerobot-record \
+  --robot.type=piper_bimanual --robot.passive=true --robot.id=followers \
+  --robot.left_port=$CAN_LEFT --robot.right_port=$CAN_RIGHT \
+  --robot.cameras="$CAMS" \
+  --teleop.type=piper_master_bimanual --teleop.id=masters \
+  --teleop.left_port=$CAN_LEFT --teleop.right_port=$CAN_RIGHT \
+  --dataset.repo_id=$REPO \
+  --dataset.no_stamp=true \
+  --dataset.single_task="$TASK" \
+  --dataset.num_episodes=150 --dataset.fps=30 \
+  --dataset.episode_time_s=300 --dataset.reset_time_s=300 \
+  --dataset.push_to_hub=false \
+  --dataset.streaming_encoding=true --dataset.encoder_threads=4 \
+  --dataset.num_image_writer_processes=2 \
+  --display_data=true
+```
+
+Pass `--robot.left_port` / `--robot.right_port` explicitly: the plugin defaults are the
+literal strings `can_left` / `can_right`, and the kernel may have named them `can0` / `can1`.
+
+On connect the teleoperator asks you to move each master in turn (30 s each). That is
+deliberate — without it, a silent master records a column of zeros.
+
+**Collection discipline.** Always the same order, every episode. The waiting arm must stay
+completely still: its follower holding position while the other works is part of what the
+policy learns. Vary only the object positions; the box, the cameras, and the lighting stay
+put. Watch the cadence summary — 4 cameras plus 2 CAN buses is the heaviest configuration
+here, and it must still read **≥ 29.5 Hz**.
+
+### Check the dataset — per arm
+
+```bash
+python scripts/check/check_dataset_bimanual.py $REPO 1     # 1 pick-place cycle per arm
+```
+
+`check_dataset.py` reads a single gripper column and stops at the first cycle, so on a
+two-arm dataset it cannot see that one arm never moved. This one splits the columns by name
+and reports LEFT and RIGHT separately, with the numbers rollout needs:
+
+```
+--- LEFT ---   -> --robot.left_max_relative_target=0.5
+--- RIGHT ---  -> --robot.right_max_relative_target=0.5
+               -> --duration=35
+Steps for 16.7 epochs (batch 8): 264,947
+```
+
+For several objects handled by one arm, `check_dataset_multi.py <repo_id> <n_objects>` does
+the same counting on a single-arm dataset.
+
+### TRAIN
+
+```bash
+lerobot-train --policy.type=act \
+  --dataset.repo_id=$REPO --output_dir=outputs/act_bimanual \
+  --policy.push_to_hub=false --policy.device=cuda \
+  --steps=<from the checker> --wandb.enable=false
+```
+
+Episodes run about twice as long as a single-arm task, so the step count roughly doubles.
+`--batch_size=16` halves the wall-clock and still fits comfortably in 32 GB.
+
+### Smoothness — MANDATORY, per arm
+
+```bash
+python scripts/check/check_smoothness_bimanual.py \
+  outputs/act_bimanual/checkpoints/last/pretrained_model $REPO 50
+```
+
+`check_smoothness.py` slices `[:, :6]`, which on a bimanual dataset is the **left arm only** —
+a jittery right arm would go unreported. This version prints both and ends with `WORST ARM`.
+That figure must be ≤ 5× before the robot is touched.
+
+### ROLLOUT (both masters POWERED OFF)
+
+```bash
+for C in $CAN_RIGHT $CAN_LEFT; do
+  python scripts/can/bus_scan.py 5 --can $C                        # control = 0
+  python scripts/can/send_probe.py --can $C --mode both --cameras  # CLEAN
+done
+python scripts/deploy/park_arm.py --can $CAN_RIGHT --spec $SPEC --pose 0 0.3 -0.3 1.4 19.9 -2.0
+python scripts/deploy/park_arm.py --can $CAN_LEFT  --spec $SPEC --pose 0 0.3 -0.3 1.4 19.9 -2.0
+# Ctrl+C after each. Place the objects and the box, clear the space between the arms.
+
+lerobot-rollout \
+  --strategy.type=base \
+  --policy.path=outputs/act_bimanual/checkpoints/last/pretrained_model \
+  --policy.n_action_steps=50 \
+  --robot.type=piper_bimanual --robot.passive=false --robot.id=followers \
+  --robot.left_port=$CAN_LEFT --robot.right_port=$CAN_RIGHT \
+  --robot.move_speed_pct=30 \
+  --robot.left_max_relative_target=<from the checker> \
+  --robot.right_max_relative_target=<from the checker> \
+  --robot.cameras="$CAMS" --task="$TASK" \
+  --fps=30 --duration=<from the checker> \
+  --return_to_initial_position=false --display_data=true
+```
+
+Parking **is** correct here: a rollout wants the arms in CAN control, which is exactly what
+`park_arm` leaves behind.
+
+Size `--duration` from the checker's **max**, not its p95 suggestion: cutting at p95 chops
+the slowest 5% of runs off mid-task, before the second arm releases.
+
+Run the first few at `move_speed_pct=30` with a hand on the power switch. During recording
+you drove the arms one at a time; a policy commands all 14 joints every tick, and the
+"waiting" arm is being told to hold rather than genuinely idle. Stop with `Ctrl+C` if the
+arms drift toward each other.
+
+### After every run
+
+```bash
+for C in $CAN_RIGHT $CAN_LEFT; do
+  ip -details -statistics link show $C | grep -A1 re-started   # bus-off must stay 0
+  python scripts/check/motor_faults.py --can $C
+done
+```
 
 ---
 
