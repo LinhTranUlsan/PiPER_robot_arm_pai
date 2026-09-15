@@ -154,7 +154,7 @@ USB 2.0 hub tops out around 35–40 MB/s.
 
 ```bash
 cp env.sh.example env.sh
-python scripts/setup/detect_cameras.py                 # list colour cameras, note [0] [1] [2]
+python scripts/setup/detect_cameras.py                 # list colour cameras, note their indices
 python scripts/setup/identify_cameras.py               # shake each arm; it identifies them
 ```
 
@@ -273,8 +273,8 @@ sudo bash scripts/can/fix_can.sh --can $CAN  # reload driver + set bitrate + mea
 ## 1.4 Camera checks
 
 ```bash
-python scripts/setup/detect_cameras.py       # expect 3 colour cameras
-python scripts/check/view_cameras.py 30      # live view in rerun for 30 s
+python scripts/setup/detect_cameras.py       # expect 4 with the overview camera, else 3
+python scripts/check/view_cameras.py 30      # live view of every named camera, incl. $ALL
 ```
 
 Compare the `front` view against how it looked while recording: same angle, same distance,

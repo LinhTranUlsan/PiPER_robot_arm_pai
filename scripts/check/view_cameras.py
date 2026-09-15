@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
-"""Live view of both cameras in rerun -- for aiming and identifying which is which.
+"""Live view of every named camera in rerun -- for aiming and identifying which is which.
 
-    source env.sh
+    source env_all.sh                                   # or env.sh, without the 4th camera
     python scripts/check/view_cameras.py [seconds]      # default 60
 
 Without env.sh the script auto-detects the cameras.
@@ -21,10 +21,15 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "setup"))
 
 
 def resolve_cameras() -> dict[str, str]:
-    """Every named camera env.sh knows about: the fixed one plus each cluster's wrist."""
+    """Every named camera the environment knows about.
+
+    $ALL is the optional overview camera from env_all.sh; it is simply absent on a rig
+    that does not have one, and the empty entries are dropped below.
+    """
     named = {"front": os.environ.get("FRONT"),
              "wrist_right": os.environ.get("WRIST_RIGHT"),
-             "wrist_left": os.environ.get("WRIST_LEFT")}
+             "wrist_left": os.environ.get("WRIST_LEFT"),
+             "all": os.environ.get("ALL")}
     named = {k: v for k, v in named.items() if v}
     if named:
         return named
