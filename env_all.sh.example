@@ -50,3 +50,23 @@ else
     echo "  CAMS_LEFT_ALL   : front + wrist + all   (3 streams)"
     echo "  CAMS_BOTH_ALL   : front + 2 wrists + all (4 streams)"
 fi
+
+# Fail loudly on a checkout that was never bootstrapped. Without this the placeholder path
+# flows into $CAMS_* and only surfaces much later, as "could not open any camera" -- or, far
+# worse, as a camera argument LeRobot rejects halfway into a recording session.
+_bad=0
+for _v in FRONT WRIST_RIGHT WRIST_LEFT ALL; do
+    eval "_p=\$$_v"
+    case "$_p" in *REPLACE-ME*) _bad=1 ;; esac
+done
+if [ "$_bad" = 1 ]; then
+    echo "" >&2
+    echo "  ERROR: this checkout still has placeholder camera paths." >&2
+    echo "         env.sh / env_all.sh were copied from their templates and never filled in." >&2
+    echo "" >&2
+    echo "    bash scripts/setup/bootstrap.sh --from /path/to/a/working/checkout" >&2
+    echo "         ... or assign the roles here:" >&2
+    echo "    bash scripts/setup/bootstrap.sh" >&2
+    echo "" >&2
+fi
+unset _bad _v _p

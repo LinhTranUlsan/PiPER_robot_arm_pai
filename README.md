@@ -5,6 +5,23 @@ Imitation learning on AgileX PiPER arms: **record → train → rollout**.
 LeRobot plugins (`piper_bus` robot, `piper_master` teleoperator) plus the CAN, camera, and
 preflight tooling needed to run them on real hardware.
 
+## Quick start
+
+```bash
+git clone https://github.com/LinhTranUlsan/PiPER_robot_arm_pai.git
+cd PiPER_robot_arm_pai
+
+conda create -y -n piper_pai python=3.12 && conda activate piper_pai
+conda install -y -c conda-forge ffmpeg
+bash scripts/setup/install.sh                                  # LeRobot + SDK + plugins
+bash scripts/setup/bootstrap.sh                                # this machine's cameras + CAN
+# already have a working checkout on this machine? skip the camera work:
+# bash scripts/setup/bootstrap.sh --from /path/to/that/checkout
+```
+
+`bootstrap.sh` must end in **`== READY ==`** before anything else is run. It exits non-zero
+and names what is missing otherwise. Full detail in PART 0.
+
 ```
 PiPER_robot_arm_pai/
 ├── plugins/            piper_bus · piper_master (+ 2 bimanual)
@@ -107,6 +124,10 @@ both env files from their templates, then **verifies** the result:
 
 Anything short of `READY` names what is still missing and prints the command that fixes it.
 It exits non-zero in that case, so it can gate a setup script.
+
+`env_all.sh` carries the same check: sourcing a checkout that was never bootstrapped prints
+an error naming the fix, instead of quietly exporting a `$CAMS` full of `REPLACE-ME` that
+only fails much later.
 
 Camera **roles** it cannot derive — only shaking an arm separates a wrist camera from a fixed
 one, so it stops and hands you the commands in 0.7.
@@ -270,7 +291,12 @@ Must report **ALL PASS**, including `TX path healthy`.
 
 ## 1.1 Open a session
 
-Run this at the start of **every** terminal. The variables live only in that shell.
+Run this at the start of **every** terminal.
+
+> First time on this machine, or a fresh clone? Run `bash scripts/setup/bootstrap.sh`
+> first and wait for `== READY ==`. Without it `env.sh` still holds placeholder paths and
+> `$CAMS` comes out full of `REPLACE-ME`.
+ The variables live only in that shell.
 
 ```bash
 conda activate piper_pai
@@ -540,6 +566,10 @@ Wait 10 s -- a controller that is not ready yet is enough to bus-off the line
 
 ## 2.1 Open the session
 
+> First time on this machine, or a fresh clone? Run `bash scripts/setup/bootstrap.sh`
+> first and wait for `== READY ==`. Without it `env.sh` still holds placeholder paths and
+> `$CAMS` comes out full of `REPLACE-ME`.
+
 ```bash
 conda activate piper_pai
 cd ~/PiPER_robot_arm_pai
@@ -698,6 +728,10 @@ print(sorted(c for c in TeleoperatorConfig.get_known_choices() if 'piper' in c))
 ```
 
 ### Open a session
+
+> First time on this machine, or a fresh clone? Run `bash scripts/setup/bootstrap.sh`
+> first and wait for `== READY ==`. Without it `env.sh` still holds placeholder paths and
+> `$CAMS` comes out full of `REPLACE-ME`.
 
 ```bash
 conda activate piper_pai && cd ~/PiPER_robot_arm_pai
