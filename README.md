@@ -88,8 +88,9 @@ shakes** while `load average` reads 0.4.
 ## Step 5 — Bootstrap this machine
 
 ```bash
-bash scripts/setup/bootstrap.sh --from /home/pai/linh/PiPER/lerobot/piper   # reuse a working checkout
-# bash scripts/setup/bootstrap.sh                                          # first machine, no source to copy
+bash scripts/setup/bootstrap.sh                             # this machine, from scratch
+# bash scripts/setup/bootstrap.sh --from /old/checkout      # reuse one that already works
+# ... on the reference rig that is:  --from /home/pai/linh/PiPER/lerobot/piper
 ```
 
 Reads each CAN adapter's USB serial from sysfs, builds `env.sh` / `env_all.sh`, then verifies:

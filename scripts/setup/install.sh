@@ -51,11 +51,19 @@ echo "   commit : $(git -C "$LEROBOT_DIR" rev-parse --short HEAD)"
 say "2. Patch: bind Space to \"next phase\" during recording"
 # One key toggles between recording an episode and the reset phase that follows it.
 # Upstream only binds Right / n. Skipped silently if already applied.
-if git -C "$LEROBOT_DIR" apply --check "$REPO/patches/0001-space-key-next-phase.patch" 2>/dev/null; then
-  git -C "$LEROBOT_DIR" apply "$REPO/patches/0001-space-key-next-phase.patch"
+# Tell "already applied" apart from "does not apply". They were reported as one line, so a
+# patch that had stopped matching read as success -- and the only symptom would be Space
+# doing nothing mid-recording, hours later.
+PATCH="$REPO/patches/0001-space-key-next-phase.patch"
+if git -C "$LEROBOT_DIR" apply --check "$PATCH" 2>/dev/null; then
+  git -C "$LEROBOT_DIR" apply "$PATCH"
   echo "   applied"
+elif git -C "$LEROBOT_DIR" apply --check --reverse "$PATCH" 2>/dev/null; then
+  echo "   already applied"
 else
-  echo "   already applied (or does not apply) -- skipping"
+  echo "   WARNING: the patch neither applies nor is already applied." >&2
+  echo "            Recording still works, but Space will not end a phase --" >&2
+  echo "            press n (next) or r (re-record) instead." >&2
 fi
 
 say "3. Python dependencies"
