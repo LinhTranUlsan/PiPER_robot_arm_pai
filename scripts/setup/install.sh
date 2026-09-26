@@ -30,10 +30,26 @@ esac; done
 say() { printf '\n\033[1m== %s ==\033[0m\n' "$1"; }
 
 say "0. Environment"
-[ -n "${CONDA_PREFIX:-}" ] || { echo "No conda env active. Run: conda activate piper" >&2; exit 1; }
+[ -n "${CONDA_PREFIX:-}" ] || { echo "No conda env active. Run: conda activate piper_pai" >&2; exit 1; }
+
+# Refuse the base env. base sets CONDA_PREFIX like any other env, so a forgotten
+# `conda activate` passed the check above and quietly installed LeRobot, piper_sdk and the
+# plugins -- about 6 GB once torch is pulled in -- into base, then printed the same success
+# banner. Every conda env except base lives under .../envs/<name>.
+case "$CONDA_PREFIX" in
+  */envs/*) : ;;
+  *) echo "Refusing to install into the BASE conda env ($CONDA_PREFIX)." >&2
+     echo "  This would put ~6 GB of LeRobot and torch into base and shadow" >&2
+     echo "  \`import lerobot\` for every other project on this machine." >&2
+     echo >&2
+     echo "  conda create -y -n piper_pai python=3.12" >&2
+     echo "  conda activate piper_pai" >&2
+     echo "  conda install -y -c conda-forge ffmpeg" >&2
+     exit 1 ;;
+esac
 PYV=$(python -c 'import sys; print(f"{sys.version_info.major}.{sys.version_info.minor}")')
 case "$PYV" in 3.1[2-9]) : ;; *) echo "Python >= 3.12 required, found $PYV" >&2; exit 1 ;; esac
-echo "   env    : $CONDA_PREFIX"
+echo "   env    : ${CONDA_DEFAULT_ENV:-?}  ($CONDA_PREFIX)"
 echo "   python : $PYV"
 command -v ffmpeg   >/dev/null || echo "   WARNING: ffmpeg missing   -> conda install -y -c conda-forge ffmpeg"
 command -v v4l2-ctl >/dev/null || echo "   WARNING: v4l2-ctl missing -> sudo apt install v4l-utils"

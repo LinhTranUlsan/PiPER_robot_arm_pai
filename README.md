@@ -57,6 +57,9 @@ conda install -y -c conda-forge ffmpeg        # 8.x -- torchcodec needs it to de
 ```
 
 Do **not** name the env `lerobot` — `import lerobot` would resolve to another checkout.
+**Activate it before Step 3.** `install.sh` refuses the `base` env, because a forgotten
+`conda activate` there installs ~6 GB of LeRobot and torch into base and shadows
+`import lerobot` for every other project on the machine.
 
 ## Step 3 — Clone and install
 
