@@ -99,38 +99,18 @@ embeds this machine's PCI id), so a fresh clone always needs this.
 roles with it and lands there directly; anything less names what is missing and exits
 non-zero.
 
-## Step 6 — Camera roles
 
-Only when Step 5 said `NOT READY YET`. **Power both arms on first** — it identifies a camera
-by shaking the arm it rides on.
-
-```bash
-python scripts/setup/identify_cameras.py      # paste the command it prints at the end
-bash scripts/setup/bootstrap.sh               # re-run -> == READY ==
-```
-
-`F R L` in that command are placeholders; `identify_cameras.py` prints it with the real
-indices. **Never guess roles from the listing order** — a swapped front/wrist makes the
-policy run blind with no error. A 4th overview camera is not derived: put its by-path into
-`ALL=` in `env_all.sh` by hand.
-
-Re-run after any camera changes USB port. No re-recording needed — datasets store images by
-feature name.
-
-## Step 7 — CAN bus
+## Step 6 — CAN bus
 
 ```bash
 sudo bash scripts/can/install_udev.sh         # pin the adapters to can_left / can_right
-sudo bash scripts/can/fix_can.sh              # set the 1 Mbps bitrate and bring both up
 ```
 
 `install_udev.sh` once per machine; `fix_can.sh` again after a reboot, replug, power-cycle or
-bus-off. Both are needed — `can_env.sh` finds an adapter by serial, but the interface still
-has to be UP with a bitrate.
+bus-off.
 
 ```bash
 source env_all.sh && source scripts/can/can_env.sh    # must print can_left / can_right
-python scripts/check/preflight.py --teleop --can $CAN_RIGHT
 ```
 
 **ALL PASS**, including `TX path healthy`. Power the arms on first, or the bus is silent and
@@ -316,13 +296,6 @@ python scripts/can/bus_scan.py 5 --can $CAN                         # 0x2A1 = 20
 python scripts/check/motor_faults.py --can $CAN                     # 6/6 joints clean
 python scripts/check/preflight.py --teleop --can $CAN               # ALL PASS
 python scripts/can/send_probe.py --can $CAN --mode both --cameras   # CLEAN
-```
-
-Park to the demo start pose, then clear the workspace and place the object:
-
-```bash
-python scripts/deploy/park_arm.py --can $CAN --spec $SPEC \
-       --pose 0 0.3 -0.3 1.4 19.9 -2.0
 ```
 
 `worst joint error` < 0.01 rad, then **Ctrl+C immediately** — holding the pose overheats
