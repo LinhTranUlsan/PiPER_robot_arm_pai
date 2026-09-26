@@ -12,10 +12,15 @@
 #
 # TO ADD OR REPLACE AN ADAPTER
 #   udevadm info -p /sys/class/net/<iface> | grep ID_SERIAL_SHORT
-# then add its serial below.
+# then put its serial below.
+#
+# The two below are THIS rig's adapters, committed on purpose so a fresh clone resolves both
+# buses with no setup at all -- udev rule or not. On a different rig, either replace them or
+# export PIPER_CAN_SERIAL_LEFT / PIPER_CAN_SERIAL_RIGHT, which win over these (bootstrap.sh
+# writes them into env_all.sh, which is gitignored).
 
-PIPER_CAN_SERIAL_LEFT="${PIPER_CAN_SERIAL_LEFT:-REPLACE-WITH-YOUR-LEFT-ADAPTER-SERIAL}"
-PIPER_CAN_SERIAL_RIGHT="${PIPER_CAN_SERIAL_RIGHT:-REPLACE-WITH-YOUR-RIGHT-ADAPTER-SERIAL}"
+PIPER_CAN_SERIAL_LEFT="${PIPER_CAN_SERIAL_LEFT:-001B00324648571720303731}"
+PIPER_CAN_SERIAL_RIGHT="${PIPER_CAN_SERIAL_RIGHT:-003600464648571220363032}"
 
 _piper_iface_for_serial() {
     local want="$1" iface serial

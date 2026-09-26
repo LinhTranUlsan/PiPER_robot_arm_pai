@@ -137,7 +137,7 @@ Next:
      python scripts/setup/detect_cameras.py            # probe cameras, note the indices
      python scripts/setup/identify_cameras.py          # which camera belongs to which arm
      python scripts/setup/detect_cameras.py --front F --wrist-right R --wrist-left L --write
-  3. Edit the two serials in scripts/can/can_env.sh    # see README section 1.5
+  3. Edit the two serials in scripts/can/can_env.sh    # see README, SETUP Step 5
      sudo bash scripts/can/fix_can.sh
   4. source env.sh && source scripts/can/can_env.sh
      python scripts/check/preflight.py --teleop --can \$CAN_RIGHT   # must be ALL PASS

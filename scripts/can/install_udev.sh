@@ -17,7 +17,34 @@ DST=/etc/udev/rules.d/$RULES
 [ "$(id -u)" -eq 0 ] || { echo "Run with sudo."; exit 1; }
 [ -f "$SRC" ] || { echo "Missing $SRC"; exit 1; }
 
+# Refuse to install a rule that still carries the placeholder. It matches no device, so it
+# silently REPLACES a working rule with one that names nothing: every adapter falls back to
+# can0 / can1, can_env.sh resolves to empty, and every `--can $CAN` downstream becomes a
+# bare `--can`. That failure looks like dead hardware and is one command away from here.
+# Comments are skipped: this file's own header mentions the placeholder by name, and
+# matching that would reject a perfectly good rule.
+if grep -v '^[[:space:]]*#' "$SRC" | grep -q 'REPLACE-WITH'; then
+  echo "REFUSING to install: $SRC still has REPLACE-WITH placeholders." >&2
+  echo >&2
+  echo "Fill in the real serials first -- these are the adapters plugged in now:" >&2
+  for IF in $(ip -br link show type can 2>/dev/null | awk '{print $1}'); do
+    printf '  %-10s %s\n' "$IF" \
+      "$(udevadm info -p "/sys/class/net/$IF" | sed -n 's/^E: ID_SERIAL_SHORT=//p')" >&2
+  done
+  echo >&2
+  echo "Then edit the two NAME= lines at the bottom of:" >&2
+  echo "  $SRC" >&2
+  exit 1
+fi
+
 echo "== 1. install $DST =="
+# Keep the rule being replaced. Recovering the previous serial mapping from a backup beats
+# rediscovering by hand which adapter drives which cluster.
+if [ -f "$DST" ] && ! cmp -s "$SRC" "$DST"; then
+  BACKUP="$DST.bak.$(date +%Y%m%d-%H%M%S)"
+  cp -p "$DST" "$BACKUP"
+  echo "   previous rule backed up to $BACKUP"
+fi
 install -m 644 "$SRC" "$DST"
 
 echo "== 2. reload udev rules =="

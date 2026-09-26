@@ -38,14 +38,37 @@ for i in $(ls /sys/class/net 2>/dev/null); do
     printf '   %-12s serial %s\n' "$i" "${s:-<none>}"
 done
 LEFT="${SERIAL[can_left]:-}"; RIGHT="${SERIAL[can_right]:-}"
+
+# Deriving the mapping from the interface NAMES only works once the udev rule is installed.
+# Where it is not, the kernel says can0 / can1 and the side each adapter drives is unknowable
+# from sysfs -- so take it from the checkout --from points at, which already recorded it.
+# Without this, --from cannot repair a machine whose udev rule was lost, which is the one
+# case it exists for.
+if [ -n "$FROM" ] && { [ -z "$LEFT" ] || [ -z "$RIGHT" ]; }; then
+    for side in LEFT RIGHT; do
+        eval "cur=\${$side:-}"; [ -z "$cur" ] || continue
+        for src in "$FROM/env_all.sh" "$FROM/scripts/can/can_env.sh"; do
+            [ -f "$src" ] || continue
+            # A serial is one long alphanumeric run; REPLACE-WITH-... is hyphenated, so its
+            # longest run is 7 characters and cannot match.
+            v=$(grep -m1 "PIPER_CAN_SERIAL_$side=" "$src" 2>/dev/null \
+                | grep -oE '[0-9A-Za-z]{12,}' | head -1)
+            [ -n "$v" ] || continue
+            eval "$side=\$v"
+            echo "   $side serial taken from $src"
+            break
+        done
+    done
+fi
+
 if [ "${#SERIAL[@]}" -eq 0 ]; then
     echo "   none found. Plug the adapters in, then: sudo bash scripts/can/fix_can.sh"
 elif [ -z "$LEFT" ] || [ -z "$RIGHT" ]; then
     echo
-    echo "   Not named can_left / can_right, so which adapter drives which cluster cannot"
-    echo "   be derived. Put the serials above into scripts/can/80-piper-can.rules, then:"
+    echo "   Not named can_left / can_right. can_env.sh still resolves them by serial, so"
+    echo "   this is not fatal -- check the CAN_LEFT / CAN_RIGHT lines under Verify below."
+    echo "   To get the names back:"
     echo "     sudo bash scripts/can/install_udev.sh && sudo bash scripts/can/fix_can.sh"
-    echo "   and re-run this script."
 fi
 
 say "2. env.sh and env_all.sh"

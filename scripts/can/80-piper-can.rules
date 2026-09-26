@@ -21,7 +21,12 @@
 #   udevadm info -p /sys/class/net/<iface> | grep ID_SERIAL_SHORT
 # then add a line below and re-run scripts/can/install_udev.sh.
 #
+# The serials below are THIS rig's adapters. On a different rig, replace them first --
+# install_udev.sh refuses to install a file that still carries the REPLACE-WITH placeholder,
+# because overwriting a working rule with one that matches nothing drops every interface
+# back to can0 / can1.
+#
 # Install:  sudo bash scripts/can/install_udev.sh
 
-SUBSYSTEM=="net", ACTION=="add", ENV{ID_NET_DRIVER}=="gs_usb", ENV{ID_SERIAL_SHORT}=="REPLACE-WITH-YOUR-ADAPTER-SERIAL", NAME="can_left"
-SUBSYSTEM=="net", ACTION=="add", ENV{ID_NET_DRIVER}=="gs_usb", ENV{ID_SERIAL_SHORT}=="REPLACE-WITH-YOUR-ADAPTER-SERIAL", NAME="can_right"
+SUBSYSTEM=="net", ACTION=="add", ENV{ID_NET_DRIVER}=="gs_usb", ENV{ID_SERIAL_SHORT}=="001B00324648571720303731", NAME="can_left"
+SUBSYSTEM=="net", ACTION=="add", ENV{ID_NET_DRIVER}=="gs_usb", ENV{ID_SERIAL_SHORT}=="003600464648571220363032", NAME="can_right"
