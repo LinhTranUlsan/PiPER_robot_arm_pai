@@ -51,8 +51,12 @@ if [ -n "$FROM" ] && { [ -z "$LEFT" ] || [ -z "$RIGHT" ]; }; then
             [ -f "$src" ] || continue
             # A serial is one long alphanumeric run; REPLACE-WITH-... is hyphenated, so its
             # longest run is 7 characters and cannot match.
+            # `|| v=""` is load-bearing: this script runs under `set -euo pipefail`, and a
+            # grep that matches nothing exits 1, which pipefail propagates and set -e turns
+            # into an abort of the whole script. A source file without the serial is the
+            # NORMAL case here -- it just means try the next one.
             v=$(grep -m1 "PIPER_CAN_SERIAL_$side=" "$src" 2>/dev/null \
-                | grep -oE '[0-9A-Za-z]{12,}' | head -1)
+                | grep -oE '[0-9A-Za-z]{12,}' | head -1) || v=""
             [ -n "$v" ] || continue
             eval "$side=\$v"
             echo "   $side serial taken from $src"
