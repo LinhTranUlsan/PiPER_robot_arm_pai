@@ -89,7 +89,7 @@ shakes** at `load average` 0.4.
 
 ```bash
 bash scripts/setup/bootstrap.sh --from /home/pai/linh/PiPER/lerobot/piper
-# bash scripts/setup/bootstrap.sh          # no checkout to copy from -> then do Step 6
+# bash scripts/setup/bootstrap.sh          # no checkout to copy from
 ```
 
 Builds `env.sh` / `env_all.sh` and records the CAN serials. Both are gitignored (by-path
@@ -99,22 +99,17 @@ embeds this machine's PCI id), so a fresh clone always needs this.
 roles with it and lands there directly; anything less names what is missing and exits
 non-zero.
 
-
 ## Step 6 — CAN bus
 
 ```bash
 sudo bash scripts/can/install_udev.sh         # pin the adapters to can_left / can_right
 ```
 
-`install_udev.sh` once per machine; `fix_can.sh` again after a reboot, replug, power-cycle or
-bus-off.
+`install_udev.sh` once per machine. The buses are brought up by `fix_can.sh` in 1.3.
 
 ```bash
 source env_all.sh && source scripts/can/can_env.sh    # must print can_left / can_right
 ```
-
-**ALL PASS**, including `TX path healthy`. Power the arms on first, or the bus is silent and
-most of it fails.
 
 > **USB wiring rule:** no hub may carry BOTH a CAN adapter and a camera — `lsusb -t | grep -B3 gs_usb`.
 > Camera hubs must be USB 3.0 (`bash scripts/check/usb_speed.sh`, 5000 Mbps).
@@ -298,9 +293,8 @@ python scripts/check/preflight.py --teleop --can $CAN               # ALL PASS
 python scripts/can/send_probe.py --can $CAN --mode both --cameras   # CLEAN
 ```
 
-`worst joint error` < 0.01 rad, then **Ctrl+C immediately** — holding the pose overheats
-J2/J5 and latches a driver fault. `drivers not enabled after 5s` → run `motor_faults.py`; on
-`motor_overheating: True` power the follower off for 30 s and start this section again.
+`Drivers still not enabled after 5s` → run `motor_faults.py`; on `motor_overheating: True`
+power the follower off for 30 s and start this section again.
 
 ```bash
 lerobot-rollout \
@@ -347,7 +341,6 @@ arrived.**
 [ ] motor_faults  -> 6/6 clean
 [ ] preflight     -> ALL PASS, including "TX path healthy"
 [ ] send_probe --cameras -> CLEAN
-[ ] park_arm      -> < 0.01 rad, then Ctrl+C AT ONCE
 [ ] Workspace clear
 [ ] After the run: bus-off still 0, no joint faulted
 ```
