@@ -71,11 +71,8 @@ def find_color_cameras() -> list[dict]:
 def camera_index(value: str) -> int:
     """An index, or a named reason why F / R / L is not one.
 
-    Every page that documents this step writes `--front F --wrist-right R --wrist-left L`,
-    which is a template and not a command -- so it gets pasted verbatim. argparse answered
-    that with `invalid int value: 'F'`, which says nothing about where a real value comes
-    from. Concrete example numbers would be worse: pasted unchanged they assign the roles
-    to the WRONG cameras and nothing downstream notices, whereas this cannot be ignored.
+    The docs write `--front F` as a template and it gets pasted verbatim. Example numbers
+    would be worse: pasted unchanged they assign the roles to the wrong cameras, silently.
     """
     try:
         return int(value)

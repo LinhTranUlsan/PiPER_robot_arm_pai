@@ -372,14 +372,8 @@ def check_gpu() -> None:
 
 
 def _can_section(port: str, no_tx: bool) -> None:
-    """A TX probe on a bus with nothing powered measures the absence of an ACK, not a fault.
-
-    CAN needs a second node to acknowledge every frame. With the cluster off, the controller
-    retries and drives error-warn / error-pass up however healthy the transmit path is --
-    and check_can_tx() then reports "the arm can talk to you, but you cannot talk to the
-    arm" and sends you off unplugging cables and measuring terminator resistance. It was the
-    loudest failure in a preflight whose rig was merely switched off.
-    """
+    """Skip the TX probe on a dead bus: with nothing to ACK, the controller logs errors
+    however healthy TX is, and check_can_tx() then blames the cables and the terminators."""
     live = check_can(port)
     if no_tx:
         pass

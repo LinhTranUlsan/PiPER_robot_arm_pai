@@ -39,11 +39,8 @@ for i in $(ls /sys/class/net 2>/dev/null); do
 done
 LEFT="${SERIAL[can_left]:-}"; RIGHT="${SERIAL[can_right]:-}"
 
-# Deriving the mapping from the interface NAMES only works once the udev rule is installed.
-# Where it is not, the kernel says can0 / can1 and the side each adapter drives is unknowable
-# from sysfs -- so take it from the checkout --from points at, which already recorded it.
-# Without this, --from cannot repair a machine whose udev rule was lost, which is the one
-# case it exists for.
+# Names only work once the udev rule is installed; without it the kernel says can0/can1 and
+# the side is unknowable from sysfs. Take it from the checkout --from points at.
 if [ -n "$FROM" ] && { [ -z "$LEFT" ] || [ -z "$RIGHT" ]; }; then
     for side in LEFT RIGHT; do
         eval "cur=\${$side:-}"; [ -z "$cur" ] || continue
@@ -51,10 +48,8 @@ if [ -n "$FROM" ] && { [ -z "$LEFT" ] || [ -z "$RIGHT" ]; }; then
             [ -f "$src" ] || continue
             # A serial is one long alphanumeric run; REPLACE-WITH-... is hyphenated, so its
             # longest run is 7 characters and cannot match.
-            # `|| v=""` is load-bearing: this script runs under `set -euo pipefail`, and a
-            # grep that matches nothing exits 1, which pipefail propagates and set -e turns
-            # into an abort of the whole script. A source file without the serial is the
-            # NORMAL case here -- it just means try the next one.
+            # `|| v=""` is load-bearing: under set -euo pipefail a grep that matches
+            # nothing aborts the script, and a source file without the serial is normal.
             v=$(grep -m1 "PIPER_CAN_SERIAL_$side=" "$src" 2>/dev/null \
                 | grep -oE '[0-9A-Za-z]{12,}' | head -1) || v=""
             [ -n "$v" ] || continue

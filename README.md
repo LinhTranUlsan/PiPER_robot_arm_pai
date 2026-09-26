@@ -56,10 +56,8 @@ conda activate piper_pai
 conda install -y -c conda-forge ffmpeg        # 8.x -- torchcodec needs it to decode video
 ```
 
-Do **not** name the env `lerobot` — `import lerobot` would resolve to another checkout.
-**Activate it before Step 3.** `install.sh` refuses the `base` env, because a forgotten
-`conda activate` there installs ~6 GB of LeRobot and torch into base and shadows
-`import lerobot` for every other project on the machine.
+Not named `lerobot`, or `import lerobot` resolves to another checkout. Activate it before
+Step 3 — `install.sh` refuses `base`.
 
 ## Step 3 — Clone and install
 
@@ -75,9 +73,8 @@ bash scripts/setup/install.sh                 # ACT + Diffusion Policy
 
 Must end with `robot : ['piper_bus']` · `teleop : ['piper_master']` · `cuda True`.
 
-**Do not move or delete this directory afterwards.** The plugins are installed editable, so
-they resolve to `plugins/` right here — delete the clone and `--robot.type=piper_bus` stops
-existing. Re-cloning means re-running `install.sh`.
+**Do not move or delete this directory.** The plugins are editable installs pointing into
+`plugins/` right here; re-cloning means re-running `install.sh`.
 
 ## Step 4 — CPU governor (REQUIRED)
 
@@ -86,58 +83,39 @@ sudo bash scripts/setup/set_cpu_performance.sh
 ```
 
 A 30 Hz loop sleeps 25 ms per tick, so `powersave` never ramps the clock and **the robot
-shakes** while `load average` reads 0.4.
+shakes** at `load average` 0.4.
 
 ## Step 5 — Bootstrap this machine
 
 ```bash
-bash scripts/setup/bootstrap.sh                             # this machine, from scratch
-# bash scripts/setup/bootstrap.sh --from /old/checkout      # reuse one that already works
-# ... on the reference rig that is:  --from /home/pai/linh/PiPER/lerobot/piper
+bash scripts/setup/bootstrap.sh --from /home/pai/linh/PiPER/lerobot/piper
+# bash scripts/setup/bootstrap.sh          # no checkout to copy from -> then do Step 6
 ```
 
-Reads each CAN adapter's USB serial from sysfs, builds `env.sh` / `env_all.sh`, then verifies:
+Builds `env.sh` / `env_all.sh` and records the CAN serials. Both are gitignored (by-path
+embeds this machine's PCI id), so a fresh clone always needs this.
 
-```
-== 3. Verify ==
-   FRONT        ok
-   WRIST_RIGHT  ok
-   WRIST_LEFT   ok
-   ALL          ok
-   CAN_LEFT     -> can_left
-   CAN_RIGHT    -> can_right
-
-== READY ==
-```
-
-**Wait for `== READY ==`.** Anything less names what is missing and prints the fix, and exits
-non-zero. `--from` copies the camera roles across, so it goes straight to `READY`; without it
-bootstrap stops at `NOT READY YET` and Step 6 is how you get past it.
+**Wait for `== READY ==`** — every line `ok`, both buses resolved. `--from` brings the camera
+roles with it and lands there directly; anything less names what is missing and exits
+non-zero.
 
 ## Step 6 — Camera roles
 
-Skip this when Step 5 reached `== READY ==`. Needed only when `--from` was not used: nothing
-in sysfs says which camera rides on which arm, so it has to be measured. **Power both arms on
-first.**
+Only when Step 5 said `NOT READY YET`. **Power both arms on first** — it identifies a camera
+by shaking the arm it rides on.
 
 ```bash
-python scripts/setup/identify_cameras.py      # shakes one arm at a time, names the cameras
-python scripts/setup/detect_cameras.py --front F --wrist-right R --wrist-left L --write
+python scripts/setup/identify_cameras.py      # paste the command it prints at the end
 bash scripts/setup/bootstrap.sh               # re-run -> == READY ==
 ```
 
-`F R L` are placeholders, not values — `identify_cameras.py` ends by printing that same
-command with the real numbers filled in, so paste the one it gives you. **Never guess them
-from the listing order** — a swapped front/wrist makes the policy run blind with no error.
-The arms must be powered: the step works by shaking them, and it now stops immediately
-rather than measuring an unpowered rig for 22 s.
+`F R L` in that command are placeholders; `identify_cameras.py` prints it with the real
+indices. **Never guess roles from the listing order** — a swapped front/wrist makes the
+policy run blind with no error. A 4th overview camera is not derived: put its by-path into
+`ALL=` in `env_all.sh` by hand.
 
-With a 4th overview camera, two of them report `NO RESPONSE` (the fixed one and the overview
-one, since neither rides on an arm). Tell them apart in `camera_id_frames/`, then put the
-overview camera's by-path into `ALL=` in `env_all.sh` by hand — that one is not derived.
-
-Re-run this step whenever a camera changes USB port; no re-recording is needed, the dataset
-stores images by feature name.
+Re-run after any camera changes USB port. No re-recording needed — datasets store images by
+feature name.
 
 ## Step 7 — CAN bus
 
@@ -146,18 +124,17 @@ sudo bash scripts/can/install_udev.sh         # pin the adapters to can_left / c
 sudo bash scripts/can/fix_can.sh              # set the 1 Mbps bitrate and bring both up
 ```
 
-`install_udev.sh` is once per machine; `fix_can.sh` again after a reboot, a replug, a
-power-cycle, or any bus-off. Both are needed: `can_env.sh` finds an adapter by serial whatever
-it is called, but an interface still has to be UP with a bitrate before anything can use it.
-
-Check, then run the acceptance gate:
+`install_udev.sh` once per machine; `fix_can.sh` again after a reboot, replug, power-cycle or
+bus-off. Both are needed — `can_env.sh` finds an adapter by serial, but the interface still
+has to be UP with a bitrate.
 
 ```bash
 source env_all.sh && source scripts/can/can_env.sh    # must print can_left / can_right
 python scripts/check/preflight.py --teleop --can $CAN_RIGHT
 ```
 
-Must report **ALL PASS**, including `TX path healthy`.
+**ALL PASS**, including `TX path healthy`. Power the arms on first, or the bus is silent and
+most of it fails.
 
 > **USB wiring rule:** no hub may carry BOTH a CAN adapter and a camera — `lsusb -t | grep -B3 gs_usb`.
 > Camera hubs must be USB 3.0 (`bash scripts/check/usb_speed.sh`, 5000 Mbps).
@@ -233,9 +210,7 @@ python scripts/check/preflight.py --teleop --can $CAN               # ALL PASS
 
 The `front` view must match how it looked while recording — same angle, distance, lighting.
 `0x15x: 0/s` means "master off **or** powered and at rest"; check the switch by hand.
-`view_cameras.py` ends with the per-camera rate: **~30 fps**. Below ~25 it prints the link
-check — `bash scripts/check/usb_speed.sh`, where 5000 Mbps is USB 3.0 and 480 is USB 2.0.
-Measured here: 4 cameras at 640x480 leave the 30 Hz loop ~25 ms of headroom per tick.
+`view_cameras.py` must end at **~30 fps**; below 25 it prints the USB link check.
 
 ## 1.5 RECORD (master POWERED ON)
 
@@ -343,6 +318,12 @@ python scripts/check/preflight.py --teleop --can $CAN               # ALL PASS
 python scripts/can/send_probe.py --can $CAN --mode both --cameras   # CLEAN
 ```
 
+Park to the demo start pose, then clear the workspace and place the object:
+
+```bash
+python scripts/deploy/park_arm.py --can $CAN --spec $SPEC \
+       --pose 0 0.3 -0.3 1.4 19.9 -2.0
+```
 
 `worst joint error` < 0.01 rad, then **Ctrl+C immediately** — holding the pose overheats
 J2/J5 and latches a driver fault. `drivers not enabled after 5s` → run `motor_faults.py`; on
@@ -383,65 +364,7 @@ python scripts/check/motor_faults.py --can $CAN                # no joint faulte
 `bus.send()` only queues a frame and returns — **a clean log does not prove the commands
 arrived.**
 
-
-## 1.11 The robot arm off. After that only turn follower on
-### 1.11.1 Power follower robot arm on, wait 10 s
-```bash
-Follower RIGHT cluster : ON
-Master   RIGHT cluster : OFF     (by its switch -- go and check, do not trust any script)
-Wait 10 s -- a controller that is not ready yet is enough to bus-off the line
-```
-### 1.11.2 Open the terminal
-```bash
-conda activate piper_pai
-cd ~/PiPER_robot_arm_pai
-
-source env_all.sh                            # pulls in env.sh, then adds $ALL + $CAMS_*_ALL
-# source env.sh                              # use this instead if you have no 4th camera
-source scripts/can/can_env.sh                # prints CAN_LEFT / CAN_RIGHT
-
-export CAN_PORT=$CAN_RIGHT                   # park_arm.py reads this
-CAN=$CAN_PORT
-CAMS="$CAMS_RIGHT_ALL"                       # must match what the dataset was recorded with
-SPEC=deploy_spec.json
-TASK="pick the cube and place it"
-
-echo "CAN=$CAN"                              # empty -> can_env.sh not sourced
-echo "$CAMS"                                 # empty -> env.sh not sourced
-```
-
-### 1.11.3 Bus
-```bash
-sudo bash scripts/can/fix_can.sh --can $CAN  # reload driver + bitrate + measure
-```
-
-### 1.11.4 Four checks — all must pass
-```bash
-python scripts/can/bus_scan.py 5 --can $CAN                         # 0x2A1 = 200/s, control = 0
-python scripts/check/motor_faults.py --can $CAN                     # 6/6 joints clean
-python scripts/check/preflight.py --teleop --can $CAN               # ALL PASS
-python scripts/can/send_probe.py --can $CAN --mode both --cameras   # CLEAN
-```
-
-### 1.11.5 Park
-```bash
-python scripts/deploy/park_arm.py --can $CAN --spec $SPEC \
-       --pose 0 0.3 -0.3 1.4 19.9 -2.0
-```
-
-### 1.11.6 Rollout
-```bash
-lerobot-rollout \
-  --strategy.type=base \
-  --policy.path=outputs/act_right/checkpoints/last/pretrained_model \
-  --policy.n_action_steps=50 \
-  --robot.type=piper_bus --robot.port=$CAN --robot.passive=false --robot.id=follower_right \
-  --robot.move_speed_pct=50 --robot.max_relative_target=0.6 \
-  --robot.cameras="$CAMS" --task="$TASK" \
-  --fps=30 --duration=20 --return_to_initial_position=false --display_data=true
-```
-
-## 1.12 Rollout checklist
+## 1.11 Rollout checklist
 
 ```
 [ ] Master arm POWERED OFF -- by its switch, not by reading a script
@@ -458,7 +381,7 @@ lerobot-rollout \
 
 Anything fails → **TROUBLESHOOTING.md**.
 
-## 1.13 Flag reference
+## 1.12 Flag reference
 
 | flag | value | why |
 |---|---|---|
@@ -502,15 +425,10 @@ Any traffic on the unpowered cluster's bus means they are still joined.
 Two terminals, each with its own variables and its own `repo_id` / `output_dir`:
 
 ```bash
-# terminal RIGHT                          
-export CAN_PORT=$CAN_RIGHT                
-CAN=$CAN_PORT                             
-CAMS="$CAMS_RIGHT_ALL"  
-                  
-# terminal LEFT
-export CAN_PORT=$CAN_LEFT
-CAN=$CAN_PORT
-CAMS="$CAMS_LEFT_ALL"
+# terminal RIGHT                    # terminal LEFT
+export CAN_PORT=$CAN_RIGHT          export CAN_PORT=$CAN_LEFT
+CAN=$CAN_PORT                       CAN=$CAN_PORT
+CAMS="$CAMS_RIGHT_ALL"              CAMS="$CAMS_LEFT_ALL"
 ```
 
 All of PART 1 then applies unchanged.

@@ -146,10 +146,8 @@ BUSES = can_up() if pycan else []
 if BUSES:
     print("\nWatching CAN: %s" % ", ".join(BUSES))
 
-    # A powered arm reports its state continuously (~2420 frames/s) whether or not anyone
-    # touches it, so silence on every bus means nothing is powered. This whole script works
-    # by SHAKING an arm, so without that it spends 22 s measuring nothing and prints a table
-    # of 1.00x with the reason buried at the bottom.
+    # A powered arm reports continuously (~2420 frames/s), so silence means nothing is on --
+    # and this identifies a camera by SHAKING an arm. Fail now, not after 22 s of 1.00x.
     _stop, _tally, _threads = threading.Event(), {}, []
     for _b in BUSES:
         _t = threading.Thread(target=listen, args=(_b, _stop, _tally), daemon=True)
@@ -309,10 +307,8 @@ print("  frames_<phase>_<cam>_a.png  and  _b.png   -- first and last frame of th
 print("  If the whole scene shifted between a and b, that camera is on the arm.")
 print()
 print("Then record the assignment:")
-# Print the real indices wherever they were measured. `--front F --wrist-right R` is a
-# template, and pasting it verbatim -- which is what the docs invite -- is the single most
-# common way this step fails. "camN" is the Nth entry of detect_cameras.py's own listing,
-# so the index is just the digits in the key.
+# Print real indices where they were measured: `--front F` is a template and gets pasted
+# verbatim. camN is the Nth entry of detect_cameras.py's listing, so N is the digits in the key.
 _flags = ["--wrist-%s %s" % (side, wrist_of[side][3:]) for side in ("right", "left")
           if side in wrist_of]
 if len(no_response) == 1:
