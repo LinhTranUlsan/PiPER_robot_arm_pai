@@ -39,10 +39,16 @@ Reference rig: 2 clusters × 2 AgileX PiPER (firmware master–follower, one CAN
 
 Shared by PART 1 and PART 2. Run the steps in order.
 
+> **One box = one paste.** Copy a box, run it, read what it prints, then move to the next.
+> Pasting a whole section at once is how most of the failures in TROUBLESHOOTING.md start.
+
 ## Step 1 — System packages
 
 ```bash
 sudo apt update
+```
+
+```bash
 sudo apt install -y git v4l-utils can-utils linux-tools-common linux-tools-$(uname -r)
 ```
 
@@ -51,10 +57,22 @@ sudo apt install -y git v4l-utils can-utils linux-tools-common linux-tools-$(una
 ## Step 2 — Conda env
 
 ```bash
-conda create -y -n piper_pai python=3.12      # LeRobot requires >= 3.12
-conda activate piper_pai
-conda install -y -c conda-forge ffmpeg        # 8.x -- torchcodec needs it to decode video
+conda create -y -n piper_pai python=3.12
 ```
+
+LeRobot requires Python >= 3.12.
+
+```bash
+conda activate piper_pai
+```
+
+The prompt must now read `(piper_pai)`.
+
+```bash
+conda install -y -c conda-forge ffmpeg
+```
+
+ffmpeg 8.x — torchcodec needs it to decode video.
 
 Not named `lerobot`, or `import lerobot` resolves to another checkout. Activate it before
 Step 3 — `install.sh` refuses `base`.
@@ -63,13 +81,21 @@ Step 3 — `install.sh` refuses `base`.
 
 ```bash
 git clone https://github.com/LinhTranUlsan/PiPER_robot_arm_pai.git
-cd PiPER_robot_arm_pai
-
-bash scripts/setup/install.sh                 # ACT + Diffusion Policy
-# bash scripts/setup/install.sh --pi0         # also pi0 (VLA)
-# bash scripts/setup/install.sh --pinned      # exact versions from requirements-pinned.txt
-# bash scripts/setup/install.sh --bimanual    # also the two-cluster plugins (PART 2)
 ```
+
+```bash
+cd PiPER_robot_arm_pai
+```
+
+```bash
+bash scripts/setup/install.sh
+```
+
+| instead of the line above | for |
+|---|---|
+| `bash scripts/setup/install.sh --pi0` | also pi0 (VLA) |
+| `bash scripts/setup/install.sh --pinned` | exact versions from requirements-pinned.txt |
+| `bash scripts/setup/install.sh --bimanual` | also the two-cluster plugins (PART 2) |
 
 Must end with `robot : ['piper_bus']` · `teleop : ['piper_master']` · `cuda True`.
 
@@ -89,8 +115,9 @@ shakes** at `load average` 0.4.
 
 ```bash
 bash scripts/setup/bootstrap.sh --from /home/pai/linh/PiPER/lerobot/piper
-# bash scripts/setup/bootstrap.sh          # no checkout to copy from
 ```
+
+No checkout to copy from? Use `bash scripts/setup/bootstrap.sh` instead.
 
 Builds `env.sh` / `env_all.sh` and records the CAN serials. Both are gitignored (by-path
 embeds this machine's PCI id), so a fresh clone always needs this.
@@ -108,8 +135,10 @@ sudo bash scripts/can/install_udev.sh         # pin the adapters to can_left / c
 `install_udev.sh` once per machine. The buses are brought up by `fix_can.sh` in 1.3.
 
 ```bash
-source env_all.sh && source scripts/can/can_env.sh    # must print can_left / can_right
+source env_all.sh && source scripts/can/can_env.sh
 ```
+
+Must print `can_left` / `can_right`.
 
 > **USB wiring rule:** no hub may carry BOTH a CAN adapter and a camera — `lsusb -t | grep -B3 gs_usb`.
 > Camera hubs must be USB 3.0 (`bash scripts/check/usb_speed.sh`, 5000 Mbps).
@@ -124,30 +153,42 @@ One master–follower cluster on one CAN bus: record → train → rollout.
 
 Run this at the start of **every** terminal. The variables live only in that shell.
 
+**1** — the env and the directory:
+
 ```bash
 conda activate piper_pai
 cd ~/PiPER_robot_arm_pai
-
-source env_all.sh                            # pulls in env.sh, then adds $ALL + $CAMS_*_ALL
-# source env.sh                              # use this instead if you have no 4th camera
-source scripts/can/can_env.sh                # CAN adapters by USB serial -> $CAN_LEFT $CAN_RIGHT
-
-export CAN_PORT=$CAN_RIGHT                   # park_arm.py reads this
-CAN=$CAN_PORT
-CAMS="$CAMS_RIGHT_ALL"                       # front + wrist_right + all
-# CAMS="$CAMS_RIGHT"                         # front + wrist_right, no 4th camera
-SPEC=deploy_spec.json                        # park_arm.py always opens this
-TASK="pick the cube and place it"
-
-echo "CAN=$CAN"                              # empty -> can_env.sh not sourced
-echo "$CAMS"                                 # empty -> env.sh not sourced
 ```
 
-LEFT cluster — change two lines only:
+**2** — `env_all.sh` pulls in `env.sh`, then adds `$ALL` + `$CAMS_*_ALL`; `can_env.sh` finds
+the adapters by USB serial and sets `$CAN_LEFT` / `$CAN_RIGHT`:
 
 ```bash
-export CAN_PORT=$CAN_LEFT
-CAMS="$CAMS_LEFT_ALL"
+source env_all.sh
+source scripts/can/can_env.sh
+```
+
+No 4th camera? `source env.sh` instead of `env_all.sh`.
+
+**3** — the session variables. `CAN_PORT` is what `park_arm.py` reads; `SPEC` is the file it
+always opens; `CAMS` is front + wrist_right + all:
+
+```bash
+export CAN_PORT=$CAN_RIGHT
+CAN=$CAN_PORT
+CAMS="$CAMS_RIGHT_ALL"
+SPEC=deploy_spec.json
+TASK="pick the cube and place it"
+```
+
+No 4th camera? `CAMS="$CAMS_RIGHT"`. LEFT cluster? `export CAN_PORT=$CAN_LEFT` and
+`CAMS="$CAMS_LEFT_ALL"` — those two lines only.
+
+**4** — prove both files were sourced. Empty means they were not:
+
+```bash
+echo "CAN=$CAN"
+echo "$CAMS"
 ```
 
 **Never type an interface name directly.** Use `$CAN_RIGHT` / `$CAN_LEFT`.
@@ -169,19 +210,35 @@ sudo bash scripts/can/fix_can.sh --can $CAN  # reload driver + set bitrate + mea
 ## 1.4 Checks
 
 ```bash
-python scripts/setup/detect_cameras.py                              # 4 with the overview camera, else 3
-python scripts/check/view_cameras.py 30                             # live view; tail line must read ~30 fps
-python scripts/check/motor_faults.py --can $CAN                     # 6/6 joints clean
-python scripts/check/preflight.py --teleop --can $CAN               # ALL PASS
-# python scripts/can/send_probe.py --can $CAN --mode both --cameras   # CLEAN
+python scripts/setup/detect_cameras.py
 ```
 
-| line to look for | meaning |
-|---|---|
-| `0x2A1 = 200/s` | exactly one arm reporting — master–slave pairing intact |
-| `driver_error_status: False` ×6 | no joint has latched a fault |
-| `TX path healthy` | the **write** path works — RX says nothing about TX |
-| `VERDICT: CLEAN` | survives the USB load a real rollout puts on the host |
+4 cameras with the overview one, else 3.
+
+```bash
+python scripts/check/view_cameras.py 30
+```
+
+Live view. The tail line must read ~30 fps.
+
+```bash
+python scripts/check/motor_faults.py --can $CAN
+```
+
+`driver_error_status: False` ×6 — no joint has latched a fault.
+
+```bash
+python scripts/check/preflight.py --teleop --can $CAN
+```
+
+`ALL PASS`. `0x2A1 = 200/s` is exactly one arm reporting, so the master–slave pairing is
+intact; `TX path healthy` is the **write** path, which RX says nothing about.
+
+Optional, `VERDICT: CLEAN` means it survives the USB load a real rollout puts on the host:
+
+```bash
+python scripts/can/send_probe.py --can $CAN --mode both --cameras
+```
 
 The `front` view must match how it looked while recording — same angle, distance, lighting.
 `0x15x: 0/s` means "master off **or** powered and at rest"; check the switch by hand.
@@ -215,9 +272,16 @@ lerobot-record \
 
 ## 1.6 Check the dataset
 
+By eye:
+
 ```bash
-lerobot-dataset-viz --repo-id=$USER/piper_right --episode-index=0   # by eye
-python scripts/check/check_dataset.py $USER/piper_right             # numbers
+lerobot-dataset-viz --repo-id=$USER/piper_right --episode-index=0
+```
+
+By numbers:
+
+```bash
+python scripts/check/check_dataset.py $USER/piper_right
 ```
 
 It prints the two numbers rollout needs: `|action-state|` → `--robot.max_relative_target`,
@@ -235,14 +299,18 @@ lerobot-edit-dataset \
 
 Steps = `16.7 × frames ÷ batch_size`. Run them one after another, never in parallel.
 
+ACT — 52M params, ~5h:
+
 ```bash
-# ACT -- 52M params, ~5h
 lerobot-train --policy.type=act \
   --dataset.repo_id=$USER/piper_right --output_dir=outputs/act_right \
   --policy.push_to_hub=false --policy.device=cuda \
   --steps=125000 --wandb.enable=false
+```
 
-# Diffusion Policy -- 263M params, ~8h
+Diffusion Policy — 263M params, ~8h (option):
+
+```bash
 lerobot-train --policy.type=diffusion \
   --dataset.repo_id=$USER/piper_right --output_dir=outputs/dp_right \
   --policy.push_to_hub=false --policy.device=cuda \
@@ -287,11 +355,28 @@ Last argument is an **episode index** (0..N-1), not a count.
 Power the master arm off **by its switch**, then wait 10 s and run all four checks:
 
 ```bash
-python scripts/can/bus_scan.py 5 --can $CAN                         # 0x2A1 = 200/s, control = 0
-python scripts/check/motor_faults.py --can $CAN                     # 6/6 joints clean
-python scripts/check/preflight.py --teleop --can $CAN               # ALL PASS
-python scripts/can/send_probe.py --can $CAN --mode both --cameras   # CLEAN
+python scripts/can/bus_scan.py 5 --can $CAN
 ```
+
+`0x2A1 = 200/s`, control = 0.
+
+```bash
+python scripts/check/motor_faults.py --can $CAN
+```
+
+6/6 joints clean.
+
+```bash
+python scripts/check/preflight.py --teleop --can $CAN
+```
+
+`ALL PASS`.
+
+```bash
+python scripts/can/send_probe.py --can $CAN --mode both --cameras
+```
+
+`VERDICT: CLEAN`.
 
 `Drivers still not enabled after 5s` → run `motor_faults.py`; on `motor_overheating: True`
 power the follower off for 30 s and start this section again.
@@ -311,7 +396,7 @@ lerobot-rollout \
   --display_data=true
 ```
 
-Diffusion Policy — add three lines, or 100 DDPM steps stall 56% of the control loop:
+Diffusion Policy — add three lines, or 100 DDPM steps stall 56% of the control loop (only apply if you use DP for your training):
 
 ```bash
   --policy.noise_scheduler_type=DDIM \
@@ -324,9 +409,16 @@ Add `--interactive=true` to start and stop by hand (`/start`, `/stop`) instead o
 ## 1.10 After every run
 
 ```bash
-ip -details -statistics link show $CAN | grep -A1 re-started   # bus-off must still be 0
-python scripts/check/motor_faults.py --can $CAN                # no joint faulted
+ip -details -statistics link show $CAN | grep -A1 re-started
 ```
+
+bus-off must still be 0.
+
+```bash
+python scripts/check/motor_faults.py --can $CAN
+```
+
+No joint faulted.
 
 `bus.send()` only queues a frame and returns — **a clean log does not prove the commands
 arrived.**
@@ -379,9 +471,22 @@ Verify they are separate — power **only the right cluster**, plug in both adap
 ```bash
 conda activate piper_pai
 source scripts/can/can_env.sh
+```
+
+```bash
 sudo bash scripts/can/fix_can.sh
-python scripts/can/bus_scan.py 5 --can $CAN_LEFT      # must be 0 fps
-python scripts/can/bus_scan.py 5 --can $CAN_RIGHT     # must be ~2420 fps
+```
+
+Must be **0 fps** — nothing is powered on that bus:
+
+```bash
+python scripts/can/bus_scan.py 5 --can $CAN_LEFT
+```
+
+Must be **~2420 fps**:
+
+```bash
+python scripts/can/bus_scan.py 5 --can $CAN_RIGHT
 ```
 
 Any traffic on the unpowered cluster's bus means they are still joined.
@@ -391,10 +496,16 @@ Any traffic on the unpowered cluster's bus means they are still joined.
 Two terminals, each with its own variables and its own `repo_id` / `output_dir`:
 
 ```bash
-# terminal RIGHT                    # terminal LEFT
-export CAN_PORT=$CAN_RIGHT          export CAN_PORT=$CAN_LEFT
-CAN=$CAN_PORT                       CAN=$CAN_PORT
-CAMS="$CAMS_RIGHT_ALL"              CAMS="$CAMS_LEFT_ALL"
+# terminal RIGHT                    
+export CAN_PORT=$CAN_RIGHT          
+CAN=$CAN_PORT                       
+CAMS="$CAMS_RIGHT_ALL"              
+
+
+# terminal LEFT
+export CAN_PORT=$CAN_LEFT
+CAN=$CAN_PORT
+CAMS="$CAMS_LEFT_ALL"
 ```
 
 All of PART 1 then applies unchanged.
@@ -409,8 +520,16 @@ its own; each cluster keeps its own firmware master-slave link.
 ### 2.3.1 Install the two extra plugins
 
 ```bash
-bash scripts/setup/install.sh --bimanual        # or, if already installed:
+bash scripts/setup/install.sh --bimanual
+```
+
+Or, if LeRobot is already installed, these two instead:
+
+```bash
 pip install -e plugins/lerobot_robot_piper_bimanual --no-deps
+```
+
+```bash
 pip install -e plugins/lerobot_teleoperator_piper_master_bimanual --no-deps
 ```
 
@@ -429,11 +548,17 @@ print(sorted(c for c in TeleoperatorConfig.get_known_choices() if 'piper' in c))
 
 ```bash
 conda activate piper_pai && cd ~/PiPER_robot_arm_pai
-source env_all.sh                            # pulls in env.sh, then adds $ALL + $CAMS_*_ALL
-source scripts/can/can_env.sh
+```
 
-CAMS="$CAMS_BOTH_ALL"                        # front + both wrists + all (4 streams)
-# CAMS="$CAMS_BOTH"                          # front + both wrists, no 4th camera
+```bash
+source env_all.sh
+source scripts/can/can_env.sh
+```
+
+`CAMS_BOTH_ALL` is front + both wrists + all, 4 streams. No 4th camera? `CAMS="$CAMS_BOTH"`.
+
+```bash
+CAMS="$CAMS_BOTH_ALL"
 SPEC=deploy_spec.json
 REPO=$USER/piper_bimanual
 TASK="right arm picks the red block into the box, then left arm picks the yellow block into the box"
@@ -449,11 +574,16 @@ Wait another 10 s
 
 ```bash
 sudo bash scripts/can/fix_can.sh
+```
+
+Then, per bus: `0x2A1 = 200/s` on each · 6/6 clean with `ctrl_mode STANDBY` · `ALL PASS`.
+
+```bash
 for C in $CAN_RIGHT $CAN_LEFT; do
   echo "===== $C ====="
-  python scripts/can/bus_scan.py 5 --can $C            # 0x2A1 = 200/s on each
-  python scripts/check/motor_faults.py --can $C        # 6/6 clean, ctrl_mode STANDBY
-  python scripts/check/preflight.py --teleop --can $C  # ALL PASS
+  python scripts/can/bus_scan.py 5 --can $C
+  python scripts/check/motor_faults.py --can $C
+  python scripts/check/preflight.py --teleop --can $C
 done
 ```
 
@@ -530,15 +660,28 @@ touched.
 
 ### 2.3.8 ROLLOUT (both masters POWERED OFF)
 
+Per bus: control = 0, then `VERDICT: CLEAN`.
+
 ```bash
 for C in $CAN_RIGHT $CAN_LEFT; do
-  python scripts/can/bus_scan.py 5 --can $C                        # control = 0
-  python scripts/can/send_probe.py --can $C --mode both --cameras  # CLEAN
+  python scripts/can/bus_scan.py 5 --can $C
+  python scripts/can/send_probe.py --can $C --mode both --cameras
 done
-python scripts/deploy/park_arm.py --can $CAN_RIGHT --spec $SPEC --pose 0 0.3 -0.3 1.4 19.9 -2.0
-python scripts/deploy/park_arm.py --can $CAN_LEFT  --spec $SPEC --pose 0 0.3 -0.3 1.4 19.9 -2.0
-# Ctrl+C after each. Place the objects and the box, clear the space between the arms.
+```
 
+Park each arm, **Ctrl+C after each**:
+
+```bash
+python scripts/deploy/park_arm.py --can $CAN_RIGHT --spec $SPEC --pose 0 0.3 -0.3 1.4 19.9 -2.0
+```
+
+```bash
+python scripts/deploy/park_arm.py --can $CAN_LEFT  --spec $SPEC --pose 0 0.3 -0.3 1.4 19.9 -2.0
+```
+
+Place the objects and the box, clear the space between the arms.
+
+```bash
 lerobot-rollout \
   --strategy.type=base \
   --policy.path=outputs/act_bimanual/checkpoints/last/pretrained_model \
@@ -562,9 +705,11 @@ lerobot-rollout \
 
 ### 2.3.9 After every run
 
+bus-off must stay 0, no joint faulted:
+
 ```bash
 for C in $CAN_RIGHT $CAN_LEFT; do
-  ip -details -statistics link show $C | grep -A1 re-started   # bus-off must stay 0
+  ip -details -statistics link show $C | grep -A1 re-started
   python scripts/check/motor_faults.py --can $C
 done
 ```
