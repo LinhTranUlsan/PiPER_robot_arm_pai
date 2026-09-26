@@ -131,15 +131,16 @@ cat <<EOF
 
 $(printf '\033[1m')Installation complete.$(printf '\033[0m')  LeRobot: $LEROBOT_DIR
 
-Next:
+Keep this directory where it is: the plugins are installed editable, so deleting or
+moving it makes --robot.type=piper_bus stop existing. Re-cloning means re-running this.
+
+Next (README, SETUP Step 4 onward):
   1. sudo bash scripts/setup/set_cpu_performance.sh    # REQUIRED, otherwise the robot shakes
-  2. cp env.sh.example env.sh
-     python scripts/setup/detect_cameras.py            # probe cameras, note the indices
-     python scripts/setup/identify_cameras.py          # which camera belongs to which arm
-     python scripts/setup/detect_cameras.py --front F --wrist-right R --wrist-left L --write
-  3. Edit the two serials in scripts/can/can_env.sh    # see README, SETUP Step 5
-     sudo bash scripts/can/fix_can.sh
-  4. source env.sh && source scripts/can/can_env.sh
+  2. bash scripts/setup/bootstrap.sh                   # env.sh + env_all.sh; wait for == READY ==
+     #  ... --from /path/to/a/working/checkout         # reuses its camera roles, skips the shaking
+  3. sudo bash scripts/can/install_udev.sh             # once per machine: pins can_left/can_right
+     sudo bash scripts/can/fix_can.sh                  # bitrate + bring both buses up
+  4. source env_all.sh && source scripts/can/can_env.sh
      python scripts/check/preflight.py --teleop --can \$CAN_RIGHT   # must be ALL PASS
 
 Read next: README.md   Something broke: TROUBLESHOOTING.md

@@ -72,6 +72,10 @@ bash scripts/setup/install.sh                 # ACT + Diffusion Policy
 
 Must end with `robot : ['piper_bus']` · `teleop : ['piper_master']` · `cuda True`.
 
+**Do not move or delete this directory afterwards.** The plugins are installed editable, so
+they resolve to `plugins/` right here — delete the clone and `--robot.type=piper_bus` stops
+existing. Re-cloning means re-running `install.sh`.
+
 ## Step 4 — CPU governor (REQUIRED)
 
 ```bash
@@ -104,6 +108,29 @@ Reads each CAN adapter's USB serial from sysfs, builds `env.sh` / `env_all.sh`, 
 
 **Wait for `== READY ==`.** Anything less names what is missing and prints the fix, and exits
 non-zero.
+
+## Step 6 — CAN bus
+
+```bash
+sudo bash scripts/can/install_udev.sh         # pin the adapters to can_left / can_right
+sudo bash scripts/can/fix_can.sh              # set the 1 Mbps bitrate and bring both up
+```
+
+`install_udev.sh` is once per machine; `fix_can.sh` again after a reboot, a replug, a
+power-cycle, or any bus-off. Both are needed: `can_env.sh` finds an adapter by serial whatever
+it is called, but an interface still has to be UP with a bitrate before anything can use it.
+
+Check, then run the acceptance gate:
+
+```bash
+source env_all.sh && source scripts/can/can_env.sh    # must print can_left / can_right
+python scripts/check/preflight.py --teleop --can $CAN_RIGHT
+```
+
+Must report **ALL PASS**, including `TX path healthy`.
+
+> **USB wiring rule:** no hub may carry BOTH a CAN adapter and a camera — `lsusb -t | grep -B3 gs_usb`.
+> Camera hubs must be USB 3.0 (`bash scripts/check/usb_speed.sh`, 5000 Mbps).
 
 ---
 
