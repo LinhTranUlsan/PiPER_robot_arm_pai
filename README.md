@@ -126,8 +126,11 @@ python scripts/setup/detect_cameras.py --front F --wrist-right R --wrist-left L 
 bash scripts/setup/bootstrap.sh               # re-run -> == READY ==
 ```
 
-`F R L` are the indices `identify_cameras.py` printed, not literal values. **Never guess them
+`F R L` are placeholders, not values — `identify_cameras.py` ends by printing that same
+command with the real numbers filled in, so paste the one it gives you. **Never guess them
 from the listing order** — a swapped front/wrist makes the policy run blind with no error.
+The arms must be powered: the step works by shaking them, and it now stops immediately
+rather than measuring an unpowered rig for 22 s.
 
 With a 4th overview camera, two of them report `NO RESPONSE` (the fixed one and the overview
 one, since neither rides on an arm). Tell them apart in `camera_id_frames/`, then put the

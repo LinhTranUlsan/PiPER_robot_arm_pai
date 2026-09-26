@@ -164,6 +164,7 @@ Next (README, SETUP Step 4 onward):
      #  ... --from /path/to/a/working/checkout         # reuses its camera roles, skips step 3
   3. Only if step 2 said NOT READY YET -- power both arms on first:
      python scripts/setup/identify_cameras.py          # which camera rides on which arm
+     #  ... it prints the next line with the real indices; F/R/L here are placeholders
      python scripts/setup/detect_cameras.py --front F --wrist-right R --wrist-left L --write
      #  4th overview camera? put its by-path into ALL= in env_all.sh by hand
      bash scripts/setup/bootstrap.sh                   # re-run -> == READY ==

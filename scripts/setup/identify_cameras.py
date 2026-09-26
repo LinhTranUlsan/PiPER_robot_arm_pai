@@ -145,6 +145,33 @@ PHASES = [("right", "RIGHT arm"), ("left", "LEFT arm")]
 BUSES = can_up() if pycan else []
 if BUSES:
     print("\nWatching CAN: %s" % ", ".join(BUSES))
+
+    # A powered arm reports its state continuously (~2420 frames/s) whether or not anyone
+    # touches it, so silence on every bus means nothing is powered. This whole script works
+    # by SHAKING an arm, so without that it spends 22 s measuring nothing and prints a table
+    # of 1.00x with the reason buried at the bottom.
+    _stop, _tally, _threads = threading.Event(), {}, []
+    for _b in BUSES:
+        _t = threading.Thread(target=listen, args=(_b, _stop, _tally), daemon=True)
+        _t.start()
+        _threads.append(_t)
+    time.sleep(1.5)
+    _stop.set()
+    for _t in _threads:
+        _t.join(timeout=2)
+    _total = sum(v.get("total", 0) for v in _tally.values())
+    if _total == 0:
+        for cam in cams.values():
+            cam.disconnect()
+        sys.exit(
+            "\nEvery CAN bus is silent -- no arm is powered.\n"
+            "  This step identifies a camera by SHAKING the arm it rides on, so with the\n"
+            "  arms off every camera can only read 1.00x.\n"
+            "  Power both clusters on, wait 10 s, then run this again.\n"
+            "  Check with: python scripts/can/bus_scan.py 5 --can " + BUSES[0]
+        )
+    print("   arms powered -- %.0f frames/s across %d bus(es)" % (_total / 1.5, len(BUSES)))
+    del _stop, _tally, _threads, _total
 elif pycan:
     print("\nNo CAN bus is up -- cameras only. To include the CAN check:\n"
           "    sudo bash scripts/can/fix_can.sh")
@@ -253,12 +280,13 @@ if BUSES and min(effort.values()) > 0:
         print("    alone, NOT because the camera is fixed. Settle it with the frames below.")
     print()
 
-claimed = {}
+claimed, wrist_of, no_response = {}, {}, []
 for k in cams:
     er, el = R[k]["right"][0], R[k]["left"][0]
     if max(er, el) < RESPOND:
         print("  %-6s usb=%-14s NO RESPONSE (%.2fx / %.2fx) -- that arm is not in its view"
               % (k, meta[k]["usb_port"], er, el))
+        no_response.append(k)
         continue
     phase = "right" if er > el else "left"
     ratio, spr = R[k][phase]
@@ -269,6 +297,7 @@ for k in cams:
         bar *= effort[phase] / max(effort.values())
     if spr > bar:
         kind = "likely WRIST (whole frame moved)"
+        wrist_of[phase] = k
     else:
         kind = "likely fixed / scene view -- CHECK THE FRAMES"
     print("  %-6s usb=%-14s -> %-5s arm   %.2fx (other phase %.2fx), spread %.2f  = %s"
@@ -280,4 +309,23 @@ print("  frames_<phase>_<cam>_a.png  and  _b.png   -- first and last frame of th
 print("  If the whole scene shifted between a and b, that camera is on the arm.")
 print()
 print("Then record the assignment:")
-print("  python scripts/setup/detect_cameras.py --front F --wrist-right R --wrist-left L --write")
+# Print the real indices wherever they were measured. `--front F --wrist-right R` is a
+# template, and pasting it verbatim -- which is what the docs invite -- is the single most
+# common way this step fails. "camN" is the Nth entry of detect_cameras.py's own listing,
+# so the index is just the digits in the key.
+_flags = ["--wrist-%s %s" % (side, wrist_of[side][3:]) for side in ("right", "left")
+          if side in wrist_of]
+if len(no_response) == 1:
+    _flags.insert(0, "--front %s" % no_response[0][3:])
+if _flags and "--front" in " ".join(_flags):
+    print("  python scripts/setup/detect_cameras.py %s --write" % " ".join(_flags))
+else:
+    print("  python scripts/setup/detect_cameras.py --front F --wrist-right R "
+          "--wrist-left L --write")
+    print("  # F / R / L are PLACEHOLDERS -- replace with the cam numbers above:"
+          " cam0 -> 0, cam1 -> 1, ...")
+if len(no_response) > 1:
+    print("  # %d cameras never responded (%s). One is FRONT; any other is the fixed"
+          % (len(no_response), ", ".join(no_response)))
+    print("  # overview camera. Tell them apart in %s, then set --front yourself" % OUT)
+    print("  # and put the overview camera's by-path into ALL= in env_all.sh.")

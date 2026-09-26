@@ -63,31 +63,32 @@ def check_load() -> None:
         report(OK, f"CPU idle (load {load1:.2f} / {ncore} threads)")
 
 
-def check_can(port: str) -> None:
+def check_can(port: str) -> bool:
     st = Path(f"/sys/class/net/{port}/operstate")
     if not st.exists():
         report(FAIL, f"{port} does not exist",
                "Adapter not plugged in, or the driver is not loaded.\n"
                "  lsusb | grep 1d50:606f\n"
                "  sudo bash scripts/can/fix_can.sh")
-        return
+        return False
     detail = subprocess.run(["ip", "-details", "link", "show", port],
                             capture_output=True, text=True).stdout
     if "state UP" not in detail:
         report(FAIL, f"{port} is DOWN",
                "sudo bash scripts/can/fix_can.sh")
-        return
+        return False
     if "bitrate" not in detail:
         report(FAIL, f"{port} is UP but has NO bitrate",
                "'ip link set up' cannot bring up CAN without a bitrate.\n"
                "  sudo bash scripts/can/fix_can.sh")
-        return
+        return False
     rx = Path(f"/sys/class/net/{port}/statistics/rx_packets")
     a = int(rx.read_text()); time.sleep(3); b = int(rx.read_text())
     fps = (b - a) / 3
     if fps == 0:
         report(FAIL, f"{port} is UP but the bus is SILENT (0 fps)",
                "Arm not powered, or the CAN cable is not connected.")
+        return False
     elif fps < 1500:
         report(WARN, f"{port}: {fps:.0f} fps -- below one arm (~2422)")
     elif fps < 3600:
@@ -95,6 +96,7 @@ def check_can(port: str) -> None:
     else:
         report(WARN, f"{port}: {fps:.0f} fps -- looks like TWO arms reporting",
                "If you are running a policy, the master arm must be POWERED OFF.")
+    return True
 
 
 def _can_errors(port: str) -> dict[str, int]:
@@ -369,6 +371,28 @@ def check_gpu() -> None:
     report(OK, f"GPU {p.name}, {p.total_memory/1e9:.1f} GB")
 
 
+def _can_section(port: str, no_tx: bool) -> None:
+    """A TX probe on a bus with nothing powered measures the absence of an ACK, not a fault.
+
+    CAN needs a second node to acknowledge every frame. With the cluster off, the controller
+    retries and drives error-warn / error-pass up however healthy the transmit path is --
+    and check_can_tx() then reports "the arm can talk to you, but you cannot talk to the
+    arm" and sends you off unplugging cables and measuring terminator resistance. It was the
+    loudest failure in a preflight whose rig was merely switched off.
+    """
+    live = check_can(port)
+    if no_tx:
+        pass
+    elif not live:
+        report(WARN, f"{port}: TX probe SKIPPED -- nothing on this bus can answer it",
+               "CAN needs another node to ACK each frame, so with the arm off the\n"
+               "controller logs errors whatever the transmit path is doing. Power the\n"
+               "cluster on, wait 10 s, then re-run before reading anything into TX.")
+    else:
+        check_can_tx(port)
+    check_arm(port)
+
+
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__,
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
@@ -391,9 +415,7 @@ def main() -> int:
     print("=" * 62)
     for title, fn in [
         ("MACHINE", lambda: (check_cpu(), check_load(), check_gpu())),
-        ("CAN BUS", lambda: (check_can(port),
-                             None if args.no_tx else check_can_tx(port),
-                             check_arm(port))),
+        ("CAN BUS", lambda: _can_section(port, args.no_tx)),
         ("CAMERAS", lambda: check_cameras(port)),
     ]:
         print(f"\n-- {title} --")

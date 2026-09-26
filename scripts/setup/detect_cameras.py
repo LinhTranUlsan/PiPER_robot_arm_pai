@@ -68,14 +68,35 @@ def find_color_cameras() -> list[dict]:
     return found
 
 
+def camera_index(value: str) -> int:
+    """An index, or a named reason why F / R / L is not one.
+
+    Every page that documents this step writes `--front F --wrist-right R --wrist-left L`,
+    which is a template and not a command -- so it gets pasted verbatim. argparse answered
+    that with `invalid int value: 'F'`, which says nothing about where a real value comes
+    from. Concrete example numbers would be worse: pasted unchanged they assign the roles
+    to the WRONG cameras and nothing downstream notices, whereas this cannot be ignored.
+    """
+    try:
+        return int(value)
+    except ValueError:
+        raise argparse.ArgumentTypeError(
+            f"{value!r} is the placeholder, not a value. Roles cannot be guessed from the "
+            f"listing order -- get the real indices by measurement first:\n"
+            f"       python scripts/setup/identify_cameras.py\n"
+            f"     It shakes each arm and prints the command to paste back here, with "
+            f"cam0 -> 0, cam1 -> 1, and so on."
+        ) from None
+
+
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__,
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--write", action="store_true", help="write env.sh at the repo root")
-    ap.add_argument("--front", type=int, help="index of the fixed camera watching the scene")
-    ap.add_argument("--wrist-right", type=int, dest="wrist_right",
+    ap.add_argument("--front", type=camera_index, help="index of the fixed camera watching the scene")
+    ap.add_argument("--wrist-right", type=camera_index, dest="wrist_right",
                     help="index of the RIGHT cluster's wrist camera")
-    ap.add_argument("--wrist-left", type=int, dest="wrist_left",
+    ap.add_argument("--wrist-left", type=camera_index, dest="wrist_left",
                     help="index of the LEFT cluster's wrist camera (omit if not fitted)")
     args = ap.parse_args()
 

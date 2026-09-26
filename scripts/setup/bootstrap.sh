@@ -150,7 +150,8 @@ else
    Assign the camera roles -- shaking an arm is the only way to tell a wrist camera
    from a fixed one:
 
-     python scripts/setup/identify_cameras.py
+     python scripts/setup/identify_cameras.py     # power the arms first; it shakes them
+     #  ... it ends by printing the next line with the real indices filled in:
      python scripts/setup/detect_cameras.py --front F --wrist-right R --wrist-left L --write
 
    With a 4th overview camera, TWO of them report NO RESPONSE (the fixed one and the
