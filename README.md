@@ -107,9 +107,32 @@ Reads each CAN adapter's USB serial from sysfs, builds `env.sh` / `env_all.sh`, 
 ```
 
 **Wait for `== READY ==`.** Anything less names what is missing and prints the fix, and exits
-non-zero.
+non-zero. `--from` copies the camera roles across, so it goes straight to `READY`; without it
+bootstrap stops at `NOT READY YET` and Step 6 is how you get past it.
 
-## Step 6 — CAN bus
+## Step 6 — Camera roles
+
+Skip this when Step 5 reached `== READY ==`. Needed only when `--from` was not used: nothing
+in sysfs says which camera rides on which arm, so it has to be measured. **Power both arms on
+first.**
+
+```bash
+python scripts/setup/identify_cameras.py      # shakes one arm at a time, names the cameras
+python scripts/setup/detect_cameras.py --front F --wrist-right R --wrist-left L --write
+bash scripts/setup/bootstrap.sh               # re-run -> == READY ==
+```
+
+`F R L` are the indices `identify_cameras.py` printed, not literal values. **Never guess them
+from the listing order** — a swapped front/wrist makes the policy run blind with no error.
+
+With a 4th overview camera, two of them report `NO RESPONSE` (the fixed one and the overview
+one, since neither rides on an arm). Tell them apart in `camera_id_frames/`, then put the
+overview camera's by-path into `ALL=` in `env_all.sh` by hand — that one is not derived.
+
+Re-run this step whenever a camera changes USB port; no re-recording is needed, the dataset
+stores images by feature name.
+
+## Step 7 — CAN bus
 
 ```bash
 sudo bash scripts/can/install_udev.sh         # pin the adapters to can_left / can_right

@@ -137,10 +137,15 @@ moving it makes --robot.type=piper_bus stop existing. Re-cloning means re-runnin
 Next (README, SETUP Step 4 onward):
   1. sudo bash scripts/setup/set_cpu_performance.sh    # REQUIRED, otherwise the robot shakes
   2. bash scripts/setup/bootstrap.sh                   # env.sh + env_all.sh; wait for == READY ==
-     #  ... --from /path/to/a/working/checkout         # reuses its camera roles, skips the shaking
-  3. sudo bash scripts/can/install_udev.sh             # once per machine: pins can_left/can_right
+     #  ... --from /path/to/a/working/checkout         # reuses its camera roles, skips step 3
+  3. Only if step 2 said NOT READY YET -- power both arms on first:
+     python scripts/setup/identify_cameras.py          # which camera rides on which arm
+     python scripts/setup/detect_cameras.py --front F --wrist-right R --wrist-left L --write
+     #  4th overview camera? put its by-path into ALL= in env_all.sh by hand
+     bash scripts/setup/bootstrap.sh                   # re-run -> == READY ==
+  4. sudo bash scripts/can/install_udev.sh             # once per machine: pins can_left/can_right
      sudo bash scripts/can/fix_can.sh                  # bitrate + bring both buses up
-  4. source env_all.sh && source scripts/can/can_env.sh
+  5. source env_all.sh && source scripts/can/can_env.sh
      python scripts/check/preflight.py --teleop --can \$CAN_RIGHT   # must be ALL PASS
 
 Read next: README.md   Something broke: TROUBLESHOOTING.md
