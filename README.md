@@ -161,7 +161,7 @@ sudo bash scripts/can/fix_can.sh --can $CAN  # reload driver + set bitrate + mea
 
 ```bash
 python scripts/setup/detect_cameras.py                              # 4 with the overview camera, else 3
-python scripts/check/view_cameras.py 30                             # live view of every named camera
+python scripts/check/view_cameras.py 30                             # live view; tail line must read ~30 fps
 python scripts/check/motor_faults.py --can $CAN                     # 6/6 joints clean
 python scripts/check/preflight.py --teleop --can $CAN               # ALL PASS
 # python scripts/can/send_probe.py --can $CAN --mode both --cameras   # CLEAN
@@ -176,6 +176,9 @@ python scripts/check/preflight.py --teleop --can $CAN               # ALL PASS
 
 The `front` view must match how it looked while recording — same angle, distance, lighting.
 `0x15x: 0/s` means "master off **or** powered and at rest"; check the switch by hand.
+`view_cameras.py` ends with the per-camera rate: **~30 fps**. Below ~25 it prints the link
+check — `bash scripts/check/usb_speed.sh`, where 5000 Mbps is USB 3.0 and 480 is USB 2.0.
+Measured here: 4 cameras at 640x480 leave the 30 Hz loop ~25 ms of headroom per tick.
 
 ## 1.5 RECORD (master POWERED ON)
 

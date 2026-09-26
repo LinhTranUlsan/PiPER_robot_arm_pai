@@ -152,20 +152,29 @@ def main() -> int:
     print("Panes are labelled from env.sh. To re-derive the labels from scratch:\n"
           "    python scripts/setup/identify_cameras.py\n")
 
+    # NO sleep in this loop, on purpose. `cam.read()` already blocks until the camera
+    # delivers its next frame, so one pass over every camera costs exactly one frame period
+    # -- the loop is paced by the hardware. A `time.sleep(1/30)` on top of that waits a
+    # SECOND period per iteration: the viewer then shows every other frame and the summary
+    # line reports 15 fps on cameras that are running a healthy 30, which reads as a USB
+    # bandwidth fault and is not one.
     t0, n = time.perf_counter(), 0
     try:
         while time.perf_counter() - t0 < dur:
             for name, cam in opened.items():
                 rr.log(name, rr.Image(cam.read()))
             n += 1
-            time.sleep(1 / 30)
     except KeyboardInterrupt:
         pass
     finally:
         dt = time.perf_counter() - t0
         for cam in opened.values():
             cam.disconnect()
-        print(f"\n{n} frames / {dt:.1f}s  =  {n/dt:.1f} fps per camera")
+        rate = n / dt
+        print(f"\n{n} frames / {dt:.1f}s  =  {rate:.1f} fps per camera")
+        if rate < 25:
+            print("  Expected ~30. Below that, check the link speed of every camera:")
+            print("    bash scripts/check/usb_speed.sh      # 5000 Mbps = USB 3.0, 480 = USB 2.0")
     return 0
 
 
