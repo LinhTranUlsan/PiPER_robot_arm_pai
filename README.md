@@ -440,7 +440,13 @@ Anything fails → **TROUBLESHOOTING.md**.
 
 ---
 
-# PART 2 — TWO ARM PAIRS
+# PART 2 — BIMANUAL (two arm pairs, one dataset)
+
+Both clusters as a single robot, driven from **one terminal**. Use this when the task needs
+both arms in one dataset: they hand over an object, or act in a sequence the policy must
+learn. `piper_bimanual` wraps two `piper_bus` instances and prefixes every key `left_` /
+`right_`, so the action vector is 14 wide. It adds no writes of its own; each cluster keeps
+its own firmware master-slave link.
 
 ## 2.1 Two separate CAN buses — requirement
 
@@ -476,33 +482,7 @@ python scripts/can/bus_scan.py 5 --can $CAN_RIGHT
 
 Any traffic on the unpowered cluster's bus means they are still joined.
 
-## 2.2 One cluster at a time — two independent datasets
-
-Two terminals, each with its own variables and its own `repo_id` / `output_dir`:
-
-```bash
-# terminal RIGHT                    
-export CAN_PORT=$CAN_RIGHT          
-CAN=$CAN_PORT                       
-CAMS="$CAMS_RIGHT_ALL"              
-
-
-# terminal LEFT
-export CAN_PORT=$CAN_LEFT
-CAN=$CAN_PORT
-CAMS="$CAMS_LEFT_ALL"
-```
-
-All of PART 1 then applies unchanged.
-
-## 2.3 Bimanual — both clusters as one robot
-
-Use this when the task needs both arms in **one** dataset: they hand over an object, or act in
-a sequence the policy must learn. `piper_bimanual` wraps two `piper_bus` instances and
-prefixes every key `left_` / `right_`, so the action vector is 14 wide. It adds no writes of
-its own; each cluster keeps its own firmware master-slave link.
-
-### 2.3.1 Install the two extra plugins
+## 2.2 Install the two extra plugins
 
 ```bash
 bash scripts/setup/install.sh --bimanual
@@ -529,7 +509,7 @@ print(sorted(c for c in RobotConfig.get_known_choices() if 'piper' in c))
 print(sorted(c for c in TeleoperatorConfig.get_known_choices() if 'piper' in c))"
 ```
 
-### 2.3.2 Open a session
+## 2.3 Open a session
 
 ```bash
 conda activate piper_pai && cd ~/PiPER_robot_arm_pai
@@ -549,7 +529,13 @@ REPO=$USER/piper_bimanual
 TASK="right arm picks the red block into the box, then left arm picks the yellow block into the box"
 ```
 
-### 2.3.3 Power on and check BOTH clusters
+```bash
+echo "$CAN_RIGHT $CAN_LEFT"; echo "$CAMS" | grep -o "8\.[0-9.]*" | tr '\n' ' '
+```
+
+Two bus names and four USB ports. A blank means `env_all.sh` or `can_env.sh` was not sourced.
+
+## 2.4 Power on and check BOTH clusters
 
 ```
 Right cluster: follower ON -> wait 5 s -> master ON
@@ -575,7 +561,25 @@ done
 `ctrl_mode : STANDBY(0x0)` is required before recording. `CAN_CTRL(0x1)` means a previous
 `park_arm` or rollout left that arm in CAN control — power-cycle that follower.
 
-### 2.3.4 RECORD (both masters POWERED ON)
+## 2.5 Sync the followers — do NOT park before recording
+
+`park_arm` leaves an arm in CAN control, which is what 2.4 flags as `CAN_CTRL(0x1)`. Nudge
+each master by hand for a few seconds instead, then check the follower tracked it:
+
+```bash
+python scripts/check/joint_limits.py --can $CAN_RIGHT
+```
+
+```bash
+python scripts/check/joint_limits.py --can $CAN_LEFT
+```
+
+The `gap` column (master minus follower) must read ~0 on every joint. `master not
+transmitting` means that arm was not moved — nudge it while the script runs.
+
+Then bring both followers to the start pose **by moving the masters**, never with `park_arm`.
+
+## 2.6 RECORD (both masters POWERED ON)
 
 ```bash
 lerobot-record \
@@ -602,7 +606,7 @@ lerobot-record \
 - Always the same order, every episode. The waiting arm must stay **completely still**
 - Cadence must still read **≥ 29.5 Hz** — 4 cameras plus 2 CAN buses is the heaviest config
 
-### 2.3.5 Check the dataset — per arm
+## 2.7 Check the dataset — per arm
 
 ```bash
 python scripts/check/check_dataset_bimanual.py $REPO 1     # 1 pick-place cycle per arm
@@ -618,9 +622,7 @@ one arm never moved. This one splits by name and reports LEFT and RIGHT separate
 Steps for 16.7 epochs (batch 8): 264,947
 ```
 
-Several objects handled by one arm: `check_dataset_multi.py <repo_id> <n_objects>`.
-
-### 2.3.6 TRAIN
+## 2.8 TRAIN
 
 ```bash
 lerobot-train --policy.type=act \
@@ -632,7 +634,7 @@ lerobot-train --policy.type=act \
 Episodes run about twice as long, so the step count roughly doubles. `--batch_size=16` halves
 the wall-clock and still fits in 32 GB.
 
-### 2.3.7 Smoothness — MANDATORY, per arm
+## 2.9 Smoothness — MANDATORY, per arm
 
 ```bash
 python scripts/check/check_smoothness_bimanual.py \
@@ -643,7 +645,7 @@ python scripts/check/check_smoothness_bimanual.py \
 go unreported. This version ends with `WORST ARM`, which must be ≤ 5× before the robot is
 touched.
 
-### 2.3.8 ROLLOUT (both masters POWERED OFF)
+## 2.10 ROLLOUT (both masters POWERED OFF)
 
 Per bus: control = 0, then `VERDICT: CLEAN`.
 
@@ -674,10 +676,11 @@ lerobot-rollout \
   --robot.type=piper_bimanual --robot.passive=false --robot.id=followers \
   --robot.left_port=$CAN_LEFT --robot.right_port=$CAN_RIGHT \
   --robot.move_speed_pct=30 \
-  --robot.left_max_relative_target=<from the checker> \
-  --robot.right_max_relative_target=<from the checker> \
+  --robot.left_max_relative_target=0.5 \
+  --robot.right_max_relative_target=0.5 \
   --robot.cameras="$CAMS" --task="$TASK" \
-  --fps=30 --duration=<from the checker> \
+  --fps=30 --duration=0 \
+  --interactive=true \
   --return_to_initial_position=false --display_data=true
 ```
 
@@ -688,7 +691,7 @@ lerobot-rollout \
 - Run the first few at `move_speed_pct=30` with a hand on the power switch; `Ctrl+C` if the
   arms drift toward each other
 
-### 2.3.9 After every run
+## 2.11 After every run
 
 bus-off must stay 0, no joint faulted:
 
