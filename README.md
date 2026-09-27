@@ -384,7 +384,7 @@ lerobot-rollout \
 
 Type `/start` to run and `/stop` to exit.
 
-(only apply if you use DP for your training) Diffusion Policy — add three lines to lerobot-rollout, or 100 DDPM steps stall 56% of the control loop:
+(Only apply syntax below if you use DP for your training) Diffusion Policy — add three lines to lerobot-rollout, or 100 DDPM steps stall 56% of the control loop:
 
 ```bash
   --policy.noise_scheduler_type=DDIM \
