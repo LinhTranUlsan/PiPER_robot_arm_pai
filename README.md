@@ -234,12 +234,6 @@ python scripts/check/preflight.py --teleop --can $CAN
 `ALL PASS`. `0x2A1 = 200/s` is exactly one arm reporting, so the master–slave pairing is
 intact; `TX path healthy` is the **write** path, which RX says nothing about.
 
-Optional, `VERDICT: CLEAN` means it survives the USB load a real rollout puts on the host:
-
-```bash
-python scripts/can/send_probe.py --can $CAN --mode both --cameras
-```
-
 The `front` view must match how it looked while recording — same angle, distance, lighting.
 `0x15x: 0/s` means "master off **or** powered and at rest"; check the switch by hand.
 `view_cameras.py` must end at **~30 fps**; below 25 it prints the USB link check.
@@ -373,15 +367,6 @@ python scripts/check/preflight.py --teleop --can $CAN
 `ALL PASS`.
 
 ```bash
-python scripts/can/send_probe.py --can $CAN --mode both --cameras
-```
-
-`VERDICT: CLEAN`.
-
-`Drivers still not enabled after 5s` → run `motor_faults.py`; on `motor_overheating: True`
-power the follower off for 30 s and start this section again.
-
-```bash
 lerobot-rollout \
   --strategy.type=base \
   --policy.path=outputs/act_right/checkpoints/last/pretrained_model \
@@ -432,7 +417,6 @@ arrived.**
 [ ] sudo bash scripts/can/fix_can.sh --can $CAN
 [ ] motor_faults  -> 6/6 clean
 [ ] preflight     -> ALL PASS, including "TX path healthy"
-[ ] send_probe --cameras -> CLEAN
 [ ] Workspace clear
 [ ] After the run: bus-off still 0, no joint faulted
 ```
