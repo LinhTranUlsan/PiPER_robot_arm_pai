@@ -376,20 +376,21 @@ lerobot-rollout \
   --robot.max_relative_target=0.6 \
   --robot.cameras="$CAMS" \
   --task="$TASK" \
-  --fps=30 --duration=20 \
+  --fps=30 --duration=0 \
+  --interactive=true \
   --return_to_initial_position=false \
   --display_data=true
 ```
 
-Diffusion Policy — add three lines, or 100 DDPM steps stall 56% of the control loop (only apply if you use DP for your training):
+Type `/start` to run and `/stop` to exit.
+
+(only apply if you use DP for your training) Diffusion Policy — add three lines to lerobot-rollout, or 100 DDPM steps stall 56% of the control loop:
 
 ```bash
   --policy.noise_scheduler_type=DDIM \
   --policy.num_inference_steps=10 \
   --policy.n_action_steps=32 \
 ```
-
-Add `--interactive=true` to start and stop by hand (`/start`, `/stop`) instead of a timer.
 
 ## 1.10 After every run
 
