@@ -281,12 +281,12 @@ python scripts/check/check_dataset.py $USER/piper_right
 It prints the two numbers rollout needs: `|action-state|` → `--robot.max_relative_target`,
 episode length → `--duration`. Dataset lives in `~/.cache/huggingface/lerobot/$USER/piper_right/`.
 
-Drop bad episodes:
+Drop bad episodes (option):
 
 ```bash
 lerobot-edit-dataset \
   --repo_id=$USER/piper_right --new_repo_id=$USER/piper_right_clean \
-  --operation.type=delete_episodes --operation.episode_indices='[1,5,9]'
+  --operation.type=delete_episodes --operation.episode_indices='[type your numbers]'
 ```
 
 ## 1.7 TRAIN
@@ -305,22 +305,22 @@ Steps = `16.7 × frames ÷ batch_size`. Run them one after another, never in par
 batch 16 halves the step count but each step costs twice as much. Batch 8 is the safer choice
 on a small dataset, because it takes twice as many optimiser steps to cover the same epochs.
 
-ACT — 52M params:
+ACT:
 
 ```bash
 lerobot-train --policy.type=act \
   --dataset.repo_id=$USER/piper_right --output_dir=outputs/act_right \
   --policy.push_to_hub=false --policy.device=cuda \
-  --steps=125000 --wandb.enable=false
+  --batch_size=8 --steps=85588 --wandb.enable=false
 ```
 
-Diffusion Policy — 263M params, about 3x slower than ACT (option):
+Diffusion Policy, about 3x slower than ACT (option):
 
 ```bash
 lerobot-train --policy.type=diffusion \
   --dataset.repo_id=$USER/piper_right --output_dir=outputs/dp_right \
   --policy.push_to_hub=false --policy.device=cuda \
-  --steps=125000 --wandb.enable=false
+  --batch_size=8 --steps=85588 --wandb.enable=false
 ```
 
 Do not set `n_action_steps` or the scheduler at train time — those are run-time parameters.
