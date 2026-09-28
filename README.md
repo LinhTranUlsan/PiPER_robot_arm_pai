@@ -292,8 +292,20 @@ lerobot-edit-dataset \
 ## 1.7 TRAIN
 
 Steps = `16.7 × frames ÷ batch_size`. Run them one after another, never in parallel.
+`check_dataset.py` prints the number for your own dataset; the table is for planning.
 
-ACT — 52M params, ~5h:
+| episodes | frames | steps @ batch 8 | steps @ batch 16 | time |
+|---|---|---|---|---|
+| 50 | 20,500 | 42,794 | 21,397 | ~0.9 h |
+| 80 | 32,800 | 68,470 | 34,235 | ~1.4 h |
+| **100** | **41,000** | **85,588** | **42,794** | **~1.7 h** |
+| 150 | 61,500 | 128,381 | 64,191 | ~2.6 h |
+
+410 frames per episode (13.7 s), 3 cameras. **The time is the same at either batch size** —
+batch 16 halves the step count but each step costs twice as much. Batch 8 is the safer choice
+on a small dataset, because it takes twice as many optimiser steps to cover the same epochs.
+
+ACT — 52M params:
 
 ```bash
 lerobot-train --policy.type=act \
@@ -302,7 +314,7 @@ lerobot-train --policy.type=act \
   --steps=125000 --wandb.enable=false
 ```
 
-Diffusion Policy — 263M params, ~8h (option):
+Diffusion Policy — 263M params, about 3x slower than ACT (option):
 
 ```bash
 lerobot-train --policy.type=diffusion \
@@ -312,6 +324,10 @@ lerobot-train --policy.type=diffusion \
 ```
 
 Do not set `n_action_steps` or the scheduler at train time — those are run-time parameters.
+
+> Times measured on the reference rig (RTX 5090): 20,000 steps in 24 min 25 s at batch 8 with
+> 3 cameras, and in 62 min 54 s at batch 16 with 4. Both work out at ~3.0 ms per sample per
+> camera, which is what the tables extrapolate. Scale by your own GPU.
 
 <details>
 <summary>pi0 — fine-tune, ~12h, 30 GB VRAM</summary>
@@ -624,15 +640,26 @@ Steps for 16.7 epochs (batch 8): 264,947
 
 ## 2.8 TRAIN
 
+| episodes | frames | steps @ batch 8 | steps @ batch 16 | time |
+|---|---|---|---|---|
+| 100 | 66,800 | 139,445 | 69,722 | ~3.7 h |
+| **150** | **100,200** | **209,168** | **104,584** | **~5.6 h** |
+| 180 | 120,240 | 251,001 | 125,500 | ~6.7 h |
+| 200 | 133,600 | 278,890 | 139,445 | ~7.4 h |
+
+668 frames per episode (22.3 s), 4 cameras. Episodes run about twice as long as single-arm
+and carry a fourth camera, so the same episode count costs roughly 3× the time.
+
 ```bash
 lerobot-train --policy.type=act \
   --dataset.repo_id=$REPO --output_dir=outputs/act_bimanual \
   --policy.push_to_hub=false --policy.device=cuda \
-  --steps=<from the checker> --wandb.enable=false
+  --batch_size=16 --steps=104584 --wandb.enable=false
 ```
 
-Episodes run about twice as long, so the step count roughly doubles. `--batch_size=16` halves
-the wall-clock and still fits in 32 GB.
+Batch 16 uses about 12 GB, well inside 32 GB. It does not shorten the run — it halves the
+step count while doubling the cost of each step — but it is the usual choice here because
+100k+ episodes give the larger batch enough data to be stable.
 
 ## 2.9 Smoothness — MANDATORY, per arm
 
