@@ -329,13 +329,13 @@ batch 16 halves the step count but each step costs twice as much. Batch 8 is the
 on a small dataset, because it takes twice as many optimiser steps to cover the same epochs.
 
 **Trimmed the dataset** with `python scripts/dataset/trim_idle.py $USER/piper_right --write`?
-> Two changes in the command below:
->
-> - `--dataset.repo_id=$USER/piper_right` → `--dataset.repo_id=$USER/piper_right_trim`
-> - `--steps=85588` → `--steps=72058`
->
-> Trimming removes frames — 41,000 → 34,519 on this rig — so the table above no longer
-> applies. Take the step count from what `trim_idle.py` prints.
+Two changes in the command below:
+
+- `--dataset.repo_id=$USER/piper_right` → `--dataset.repo_id=$USER/piper_right_trim`
+- `--steps=85588` → `--steps=72058`
+
+Trimming removes frames — 41,000 → 34,519 on this rig — so the table above no longer applies.
+Take the step count from what `trim_idle.py` prints.
 
 ACT:
 
@@ -705,13 +705,13 @@ included. Train on `${REPO}_trim` from there on.
 and carry a fourth camera, so the same episode count costs roughly 3× the time.
 
 **Trimmed the dataset** with `python scripts/dataset/trim_idle.py $REPO --write`?
-> Two changes in the command below:
->
-> - `--dataset.repo_id=$REPO` → `--dataset.repo_id=${REPO}_trim`
-> - `--steps=104584` → `--steps=96055`
->
-> Trimming removes frames — 100,200 → 92,029 on this rig — so the table above no longer
-> applies. Take the step count from what `trim_idle.py` prints.
+Two changes in the command below:
+
+- `--dataset.repo_id=$REPO` → `--dataset.repo_id=${REPO}_trim`
+- `--steps=104584` → `--steps=96055`
+
+Trimming removes frames — 100,200 → 92,029 on this rig — so the table above no longer applies.
+Take the step count from what `trim_idle.py` prints.
 
 ```bash
 lerobot-train --policy.type=act \
