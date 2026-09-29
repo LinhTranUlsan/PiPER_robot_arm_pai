@@ -332,10 +332,13 @@ Steps = `16.7 × frames ÷ batch_size`. Run them one after another, never in par
 batch 16 halves the step count but each step costs twice as much. Batch 8 is the safer choice
 on a small dataset, because it takes twice as many optimiser steps to cover the same epochs.
 
-If you use `python scripts/dataset/trim_idle.py $USER/piper_right --write`, change
-`--dataset.repo_id=$USER/piper_right` -> `--dataset.repo_id=$USER/piper_right_trim`, and take
-`--steps` from what that script prints — trimming removes frames, so the table above no longer
-applies. On this rig: 41,000 -> 34,519 frames, so 85,588 -> **72,058** steps at batch 8.
+> **Trimmed the dataset?** Two changes in the command below:
+>
+> - `--dataset.repo_id=$USER/piper_right` → `--dataset.repo_id=$USER/piper_right_trim`
+> - `--steps=85588` → `--steps=72058`
+>
+> Trimming removes frames — 41,000 → 34,519 on this rig — so the table above no longer
+> applies. Take the step count from what `trim_idle.py` prints.
 
 ACT:
 
@@ -708,10 +711,13 @@ included. Train on `${REPO}_trim` from there on.
 668 frames per episode (22.3 s), 4 cameras. Episodes run about twice as long as single-arm
 and carry a fourth camera, so the same episode count costs roughly 3× the time.
 
-If you use `python scripts/dataset/trim_idle.py $REPO --write`, change
-`--dataset.repo_id=$REPO` -> `--dataset.repo_id=${REPO}_trim`, and take `--steps` from what
-that script prints. On this rig: 100,200 -> 92,029 frames, so 104,584 -> **96,055** steps at
-batch 16.
+> **Trimmed the dataset?** Two changes in the command below:
+>
+> - `--dataset.repo_id=$REPO` → `--dataset.repo_id=${REPO}_trim`
+> - `--steps=104584` → `--steps=96055`
+>
+> Trimming removes frames — 100,200 → 92,029 on this rig — so the table above no longer
+> applies. Take the step count from what `trim_idle.py` prints.
 
 ```bash
 lerobot-train --policy.type=act \
