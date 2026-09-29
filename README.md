@@ -332,7 +332,8 @@ Steps = `16.7 × frames ÷ batch_size`. Run them one after another, never in par
 batch 16 halves the step count but each step costs twice as much. Batch 8 is the safer choice
 on a small dataset, because it takes twice as many optimiser steps to cover the same epochs.
 
-> **Trimmed the dataset?** Two changes in the command below:
+> **Trimmed the dataset** with `python scripts/dataset/trim_idle.py $USER/piper_right --write`?
+> Two changes in the command below:
 >
 > - `--dataset.repo_id=$USER/piper_right` → `--dataset.repo_id=$USER/piper_right_trim`
 > - `--steps=85588` → `--steps=72058`
@@ -711,7 +712,8 @@ included. Train on `${REPO}_trim` from there on.
 668 frames per episode (22.3 s), 4 cameras. Episodes run about twice as long as single-arm
 and carry a fourth camera, so the same episode count costs roughly 3× the time.
 
-> **Trimmed the dataset?** Two changes in the command below:
+> **Trimmed the dataset** with `python scripts/dataset/trim_idle.py $REPO --write`?
+> Two changes in the command below:
 >
 > - `--dataset.repo_id=$REPO` → `--dataset.repo_id=${REPO}_trim`
 > - `--steps=104584` → `--steps=96055`
