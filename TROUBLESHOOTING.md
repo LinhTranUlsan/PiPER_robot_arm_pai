@@ -587,9 +587,40 @@ take any PipeWire microphone (`--voice.mic=<name>`).
 ### The headset is connected, but no microphone appears
 
 It is in the music (A2DP) profile, which has no microphone. `voice_test.py --list` then
-shows it only under SPEAKERS. Pick it in *Settings → Sound → Input*: that switches it to the
-headset (HFP) profile and a `bluez_input...` microphone appears. Mono and 16 kHz is normal
-in that profile, and all Whisper needs.
+shows it only under SPEAKERS. Switch it to the 16 kHz microphone profile:
+
+```bash
+python scripts/voice/voice_test.py --headset T14      # any part of the headset's name
+```
+
+It must print `codec msbc, 16000 Hz`. Headsets come back up in A2DP after every reconnect,
+so this is part of every session (README 3.4).
+
+### The mic hears you, but every colour is misheard (`yo`, `thank you`, `bye`)
+
+The headset is on the **8 kHz** phone codec (CVSD), not the 16 kHz one (mSBC). It records —
+the levels look normal — but at 8 kHz Whisper cannot tell the words apart, and a voice
+profile enrolled at 16 kHz does not match either. Measured on the reference headset: 5/5 on
+mSBC, 0/4 on CVSD. `voice_test.py --list` shows the codec and rate at the end:
+
+```
+  Bluetooth mic bluez_input....: codec cvsd, 8000 Hz   <-- 8 kHz: run --headset <name> for 16 kHz
+```
+
+```bash
+python scripts/voice/voice_test.py --headset T14
+```
+
+Never pick the headset profile by number (`wpctl set-profile <id> 3`): index 3 lets PipeWire
+choose, and it may choose CVSD. `--headset` picks mSBC by name.
+
+### `Microphone lost. Reconnecting.` during a rollout
+
+The Bluetooth audio link failed while the headset stayed connected: the microphone stream
+went on delivering pure zeros. The kernel log says so —
+`journalctl --user -b | grep "Failure in Bluetooth audio transport"`. The script reopens the
+stream by itself after 3 s of digital silence. If it keeps happening, or the headset
+disconnects: README 3.12.
 
 ### The robot talks in the headset, not on the monitor
 
@@ -613,7 +644,7 @@ python scripts/voice/voice_test.py --rounds 10 --csv outputs/voice_mic_test.csv
 |---|---|
 | `nobody spoke within 15s` while you spoke | wrong microphone: `--list`, then `--set-input` or `--voice.mic` |
 | `peak` barely above `threshold` | mic too far or muted; headset mic boom closer |
-| heard text wrong (`hello` for *yellow*) — accent | **enrol your voice**: `voice_test.py --enroll` (README 3.2 step 7); then the profile recognises it whatever Whisper writes |
+| heard text wrong (`hello` for *yellow*) — accent, headset on 16 kHz | **enrol your voice**: `voice_test.py --enroll` (README 3.5); then the profile recognises it whatever Whisper writes |
 | `profile: -  too far from every take` | said differently from the enrolment — `--enroll` again, the way you actually say it |
 | `conflict` | Whisper and your profile disagree: the word is between the two — say it more clearly |
 | `heard a correction` | a *no* / *wait* / *không* in the sentence: say just the colour |

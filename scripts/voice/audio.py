@@ -88,6 +88,67 @@ def set_default(node: Node) -> None:
     subprocess.run(["wpctl", "set-default", str(node.id)], check=True)
 
 
+# Headset profiles, best first. mSBC is 16 kHz wideband -- what Whisper needs. CVSD is the
+# 8 kHz phone-line codec: the mic still works, but Whisper turns "yellow" into "yo" and an
+# enrolled voice profile no longer matches. Measured on the reference headset: 5/5 on mSBC,
+# 0/4 on CVSD. A2DP profiles carry no microphone at all.
+HEADSET_PROFILES = ("headset-head-unit-msbc", "headset-head-unit")
+
+
+def _dump() -> list[dict]:
+    return json.loads(subprocess.run(["pw-dump"], capture_output=True, text=True, check=True).stdout)
+
+
+def bluez_mic_format() -> dict[str, tuple[str | None, int | None]]:
+    """node.name -> (codec, sample rate) for every Bluetooth microphone."""
+    out = {}
+    for obj in _dump():
+        info = obj.get("info") or {}
+        props = info.get("props") or {}
+        name = str(props.get("node.name", ""))
+        if name.startswith("bluez_input"):
+            fmt = ((info.get("params") or {}).get("EnumFormat") or [{}])[0]
+            out[name] = (props.get("api.bluez5.codec"), fmt.get("rate"))
+    return out
+
+
+def set_headset_mode(query: str) -> tuple[str, str | None, int | None]:
+    """Put the Bluetooth headset matching `query` in its 16 kHz microphone mode.
+
+    Picks the profile by NAME, never by index: indexes differ between headsets and PipeWire
+    versions, and the wrong one silently gives the 8 kHz codec. Returns (profile, codec, rate).
+    """
+    q = query.lower()
+    devices = []
+    for obj in _dump():
+        props = (obj.get("info") or {}).get("props") or {}
+        if obj.get("type", "").endswith("Device") and props.get("device.api") == "bluez5":
+            desc = f"{props.get('device.description', '')} {props.get('device.name', '')}".lower()
+            if q in desc:
+                devices.append(obj)
+    if len(devices) != 1:
+        sys.exit(f"{len(devices)} Bluetooth audio devices match {query!r}. Is the headset connected?\n"
+                 f"  bluetoothctl devices Connected")
+    dev = devices[0]
+    profiles = {p.get("name"): p.get("index")
+                for p in ((dev.get("info") or {}).get("params") or {}).get("EnumProfile", [])}
+    want = next((p for p in HEADSET_PROFILES if p in profiles), None)
+    if want is None:
+        sys.exit(f"this headset offers no microphone profile. It has: {sorted(n for n in profiles if n)}")
+    subprocess.run(["wpctl", "set-profile", str(dev["id"]), str(profiles[want])], check=True)
+    deadline = time.perf_counter() + 10
+    while time.perf_counter() < deadline:
+        fmt = bluez_mic_format()
+        if fmt:
+            name, (codec, rate) = next(iter(fmt.items()))
+            if rate:
+                src = next(n for n in list_nodes()[0] if n.name == name)
+                set_default(src)
+                return want, codec, rate
+        time.sleep(0.3)
+    sys.exit(f"switched to {want}, but no Bluetooth microphone appeared within 10 s -- reconnect the headset")
+
+
 # ---------------------------------------------------------------------------
 # Speech out
 # ---------------------------------------------------------------------------
@@ -125,21 +186,38 @@ class Mic:
 
     def __init__(self, target: str | None = None, buffer_s: float = 30.0):
         self._init_buffer(buffer_s)
-        cmd = ["pw-record", "--rate", str(RATE), "--channels", "1", "--format", "s16"]
+        self._cmd = ["pw-record", "--rate", str(RATE), "--channels", "1", "--format", "s16"]
         if target:
-            cmd += ["--target", target]
-        # stderr to a file, not a pipe: nobody reads it while the session runs, and a pipe
-        # that fills up (64 KB of xrun warnings) blocks pw-record -- the mic would go dead.
-        self._err = tempfile.TemporaryFile()
-        self._proc = subprocess.Popen(cmd + ["-"], stdout=subprocess.PIPE, stderr=self._err)
-        self._thread = threading.Thread(target=self._pump, daemon=True)
-        self._thread.start()
+            self._cmd += ["--target", target]
+        self._cmd.append("-")
+        self._start()
         # Fail now, not on the first listen(), when the target does not exist.
         time.sleep(0.3)
         if self._proc.poll() is not None:
             self._err.seek(0)
             err = self._err.read().decode(errors="replace").strip()
-            raise RuntimeError(f"pw-record exited at once: {err or 'no message'}  (cmd: {' '.join(cmd)})")
+            raise RuntimeError(f"pw-record exited at once: {err or 'no message'}  (cmd: {' '.join(self._cmd)})")
+
+    def _start(self) -> None:
+        # stderr to a file, not a pipe: nobody reads it while the session runs, and a pipe
+        # that fills up (64 KB of xrun warnings) blocks pw-record -- the mic would go dead.
+        self._err = tempfile.TemporaryFile()
+        self._proc = subprocess.Popen(self._cmd, stdout=subprocess.PIPE, stderr=self._err)
+        self._thread = threading.Thread(target=self._pump, args=(self._proc,), daemon=True)
+        self._thread.start()
+
+    def restart(self) -> None:
+        """Close and reopen the capture stream -- what re-establishes a dropped Bluetooth link."""
+        old = self._proc
+        if old is None:
+            return
+        self._alive = True
+        self._start()                   # the new one first, so _pump(old) exiting is harmless
+        old.terminate()
+        try:
+            old.wait(timeout=2)
+        except subprocess.TimeoutExpired:
+            old.kill()
 
     def _init_buffer(self, buffer_s: float) -> None:
         self._buf: collections.deque[np.ndarray] = collections.deque(maxlen=int(buffer_s / CHUNK_S))
@@ -156,14 +234,17 @@ class Mic:
         with self._cv:
             self._cv.notify_all()
 
-    def _pump(self) -> None:
+    def _pump(self, proc: subprocess.Popen) -> None:
         nbytes = CHUNK * 2
         while self._alive:
-            raw = self._proc.stdout.read(nbytes)
+            raw = proc.stdout.read(nbytes)
             if not raw or len(raw) < nbytes:
                 break
+            if proc is not self._proc:          # replaced by restart(): stop feeding
+                return
             self._push(np.frombuffer(raw, dtype=np.int16).copy())
-        self._ended()
+        if proc is self._proc:
+            self._ended()
 
     def _next(self, timeout: float) -> np.ndarray | None:
         with self._cv:
@@ -208,6 +289,7 @@ class Mic:
         off = on * 2 / 3
         pre = collections.deque(maxlen=int(0.3 / CHUNK_S))
         voiced, started, got, silent, peak = 0, False, [], 0.0, 0.0
+        zeros = 0.0
         t0 = time.perf_counter()
         while True:
             if cancel is not None and cancel.is_set():
@@ -216,6 +298,19 @@ class Mic:
             if c is None:
                 if wait_s is not None and not started and time.perf_counter() - t0 > wait_s:
                     return None
+                continue
+            # A real microphone is never EXACTLY zero: even a quiet room is +-a few counts.
+            # Long runs of pure zeros mean the device stopped delivering audio while the stream
+            # stayed open -- a Bluetooth headset whose audio link failed does exactly that, and
+            # without this check listen() would wait forever on a dead mic without a word.
+            zeros = zeros + CHUNK_S if not c.any() else 0.0
+            if zeros >= 3.0 and getattr(self, "_proc", None) is not None:
+                print("  [mic] 3 s of pure digital silence -- the microphone stopped delivering audio "
+                      "(Bluetooth link dropped?). Reopening it...", flush=True)
+                say("Microphone lost. Reconnecting.")
+                self.restart()
+                zeros, voiced = 0.0, 0
+                on = max(min_threshold, on)
                 continue
             r = _rms(c)
             if not started:

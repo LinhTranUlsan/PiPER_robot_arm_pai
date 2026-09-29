@@ -2,6 +2,7 @@
 """Test the voice chain on its own -- no robot, no policy, no CAN.
 
     python scripts/voice/voice_test.py --list                  # speakers and microphones
+    python scripts/voice/voice_test.py --headset T14           # headset -> 16 kHz mic mode, default mic
     python scripts/voice/voice_test.py --set-output HDMI       # speak on the monitor
     python scripts/voice/voice_test.py --set-input  <name>     # listen on the headset
     python scripts/voice/voice_test.py --say "Red cube"        # one sentence out loud
@@ -30,7 +31,8 @@ import numpy as np
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from asr import DEFAULT_MODEL, Whisper  # noqa: E402
-from audio import RATE, Mic, PlaybackMic, find_node, list_nodes, say, set_default  # noqa: E402
+from audio import (RATE, Mic, PlaybackMic, bluez_mic_format, find_node, list_nodes, say,  # noqa: E402
+                   set_default, set_headset_mode)
 from commands import COLORS, parse_color, prompt_for  # noqa: E402
 from voiceprint import DEFAULT_PROFILE, OTHER, VoiceProfile, decide, trim  # noqa: E402
 
@@ -75,6 +77,9 @@ def cmd_list() -> int:
             print(f"  {mark} {n.id:4d}  {n.description}\n           {n.name}")
     print("\n  * = default. say() always plays on the default speaker; the rollout listens on")
     print("    the default microphone unless --mic is given.")
+    for name, (codec, rate) in bluez_mic_format().items():
+        warn = "   <-- 8 kHz: run --headset <name> for 16 kHz" if rate and rate < 16000 else ""
+        print(f"\n  Bluetooth mic {name}: codec {codec}, {rate} Hz{warn}")
     src = defaults.get("source", "")
     if src.startswith("alsa_output") or ".monitor" in src:
         print("\n  NOTE: the default microphone is a speaker MONITOR, i.e. no real mic is selected.")
@@ -263,6 +268,8 @@ def main() -> int:
     g.add_argument("--list", action="store_true", help="list speakers and microphones")
     g.add_argument("--set-output", metavar="NAME", help="make the speaker matching NAME the default")
     g.add_argument("--set-input", metavar="NAME", help="make the microphone matching NAME the default")
+    g.add_argument("--headset", metavar="NAME", help="put the Bluetooth headset matching NAME in its 16 kHz "
+                                                   "mic mode and make it the default microphone")
     g.add_argument("--say", metavar="TEXT", help="speak TEXT on the default speaker")
     g.add_argument("--selftest", action="store_true", help="whole chain on synthetic speech, silent, no mic")
     g.add_argument("--enroll", action="store_true", help="record your voice profile (takes per colour)")
@@ -286,6 +293,14 @@ def main() -> int:
         set_default(n)
         print(f"default speaker -> {n.description}")
         say("This is the robot speaker")
+        return 0
+    if args.headset:
+        profile, codec, rate = set_headset_mode(args.headset)
+        print(f"headset -> {profile}   codec {codec}, {rate} Hz, now the default microphone")
+        if rate and rate < 16000:
+            print(f"  WARNING: {rate} Hz is phone quality -- Whisper will mishear. This headset has no "
+                  "16 kHz (mSBC) mode here; a wired or USB mic will recognise far better.")
+            return 1
         return 0
     if args.set_input:
         n = find_node("source", args.set_input)

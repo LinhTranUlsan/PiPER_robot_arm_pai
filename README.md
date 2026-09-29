@@ -743,23 +743,25 @@ You say a colour; the arm puts that cube in the jar and comes back, ready for th
 One SmolVLA policy does both. It reads the camera images, the arm state **and a text
 prompt**, and the prompt is what picks the cube: `Put the yellow cube in the jar.` or
 `Put the green cube in the jar.` The voice side only turns what you said into one of those
-prompts.
-
-The colours are `COLORS` in `scripts/voice/commands.py`; recording, checking and the
-rollout all follow it. Change it only **before** recording a dataset. ACT and Diffusion
-Policy take no text, so they cannot do this task — PART 3 is SmolVLA only.
-
-One arm pair on `can_right`, as in PART 1. Do SETUP and PART 1 up to 1.4 first.
+prompts. ACT and Diffusion Policy take no text, so they cannot do this task.
 
 ```
 record_colors.py   one prompt PER EPISODE, both colours on every table layout
       |
 lerobot-train      smolvla_base, fine-tuned on both colours together
       |
-voice_rollout.py   microphone -> Whisper + your voice profile -> one colour -> the policy
+voice_rollout.py   headset mic -> Whisper + your voice profile -> one colour -> the policy
 ```
 
-## 3.1 Install SmolVLA and Whisper
+One arm pair on `can_right`, as in PART 1. Do SETUP and PART 1 up to 1.4 first. The
+colours are `COLORS` in `scripts/voice/commands.py`; recording, checking and the rollout
+all follow it — change it only **before** recording a dataset.
+
+| once per machine | every session |
+|---|---|
+| 3.1 install · 3.2 pair the headset · 3.5 enrol your voice | 3.3 open a session · 3.4 headset mode |
+
+## 3.1 Install SmolVLA and Whisper (once)
 
 ```bash
 conda activate piper_pai && cd ~/PiPER_robot_arm_pai
@@ -779,21 +781,16 @@ python -c "import transformers, num2words; print('transformers', transformers.__
 
 Must print `transformers 5.5.x`.
 
-## 3.2 Audio — headset microphone in, monitor speaker out
-
-**Speaker:** the robot talks through speech-dispatcher, which always plays on the DEFAULT
-speaker. **Microphone:** the headset, picked by name.
-
-**1** — is there a Bluetooth controller at all:
+## 3.2 Pair the headset (once)
 
 ```bash
 bluetoothctl show | head -3
 ```
 
-`No default controller available` means the adapter never came up — TROUBLESHOOTING.md,
-*Voice*, first entry. Fix that before going on.
+Must print `Controller ...`. `No default controller available` means the adapter never came
+up — TROUBLESHOOTING.md, *Voice*, first entry.
 
-**2** — pair the headset once. Put it in pairing mode, then:
+Put the headset in pairing mode, then:
 
 ```bash
 bluetoothctl
@@ -811,85 +808,11 @@ connect XX:XX:XX:XX:XX:XX
 exit
 ```
 
-After that it reconnects on its own when switched on.
-
-**3** — what the machine sees now:
-
-```bash
-python scripts/voice/voice_test.py --list
-```
-
-The headset must appear under **MICROPHONES** as a `bluez_input...` line. It appears only
-in the headset (HFP) profile: if it is missing, open *Settings → Sound → Input* and pick the
-headset — that switches the profile.
-
-**4** — the monitor as speaker. A Bluetooth headset tends to take over as the default
-speaker when it connects, so set this **after** connecting it:
-
-```bash
-python scripts/voice/voice_test.py --set-output HDMI
-```
-
-It says *"This is the robot speaker"* on the monitor.
-
-**5** — the headset as microphone. Use any part of its name from `--list`:
-
-```bash
-python scripts/voice/voice_test.py --set-input bluez
-```
-
-**6** — the chain without a microphone. Silent: it synthesises speech in memory and runs it
-through speech detection, Whisper and the colour parser.
-
-```bash
-python scripts/voice/voice_test.py --selftest
-```
-
-Must end with `wrong colour / false start: 0` and `speech detection misses: 0`. The
-`understood` count is informational — the synthetic voice says the words worse than you will.
-
-**7** — teach it YOUR voice. Whisper expects textbook English; with an accent it writes
-*"hello"* for *yellow* and finds no colour. A voice profile matches what you say against
-your own earlier takes instead, so the pronunciation does not matter — only that you say it
-the same way each time. English or Vietnamese (*vàng*, *xanh lá*), your choice:
-
-```bash
-python scripts/voice/voice_test.py --enroll
-```
-
-It asks for each colour 5 times, then 6 things that are **not** a colour — *hello*,
-*okay*, your name, a cough. Those are what stop a similar-sounding word from counting as a
-command, so say real, different things. Takes over 5 s are asked again. It ends with
-`every take is recognised as itself` (consistent) or lists the takes that were not; then
-it writes `outputs/voice_profile.npz`, which the next steps use automatically.
-
-**8** — the real microphone, ten rounds. It asks *"Say a color"* and says back what it
-understood; nothing moves:
-
-```bash
-python scripts/voice/voice_test.py --rounds 10 --csv outputs/voice_mic_test.csv
-```
-
-Each round prints what Whisper heard, what the profile matched, and who decided:
-
-| `[...]` | meaning |
-|---|---|
-| `whisper + profile` | both agree — the strongest case |
-| `whisper` | Whisper read the colour; the profile was unsure |
-| `profile` | Whisper found no colour word; your profile recognised it |
-| `refused` — `conflict` | they disagree — never guessed, it asks again |
-
-Anything with two colours, a correction (*"yellow, no, green"*), a colour not on the table
-(*red*) or no colour at all is **refused, never guessed**. With only green on the table,
-bare *xanh* means green. Vietnamese Whisper: add `--language vi`.
-
-Aim for 10/10 before recording. Many refusals: `--enroll` again, closer to the mic, and
-say each take the way you will say it to the robot. `peak ... vs threshold ...` barely
-above the threshold means the mic is too far or too quiet.
+`trust` makes it reconnect on its own whenever it is switched on.
 
 ## 3.3 Open a session
 
-As in 1.1, plus the dataset name and the camera map SmolVLA needs:
+Run this at the start of **every** terminal, as in 1.1:
 
 ```bash
 conda activate piper_pai
@@ -916,15 +839,124 @@ echo "CAN=$CAN"; echo "$CAMS"; echo "$SMOLVLA_RENAME"
 image lands in the wrong slot. No 4th camera? `CAMS="$CAMS_RIGHT"` and drop the `all` entry
 from the map.
 
-## 3.4 Set the table
+## 3.4 Headset mode — every session, and after every reconnect
+
+A Bluetooth headset comes up in its music mode (A2DP), which has **no microphone**, and
+tends to take over as the default speaker. Three lines fix both. Replace `T14` with any part
+of your headset's name.
+
+**1** — connected:
+
+```bash
+bluetoothctl devices Connected
+```
+
+Your headset must be listed. Not listed: switch it on, or `bluetoothctl connect XX:XX:...`.
+
+**2** — microphone mode at 16 kHz, as the default microphone:
+
+```bash
+python scripts/voice/voice_test.py --headset T14
+```
+
+Must print `headset-head-unit-msbc   codec msbc, 16000 Hz`. It picks the profile by name.
+**16000 Hz is the requirement**: the 8 kHz phone codec (CVSD) still records, but Whisper
+hears *"yo"* for *yellow* — measured on the reference headset, 5/5 recognised on mSBC, 0/4
+on CVSD. A `WARNING: 8000 Hz` means this headset has no 16 kHz mode here: use a wired or USB
+microphone instead (`--voice.mic=<its name>` below).
+
+**3** — the robot speaks on the monitor, not in the headset:
+
+```bash
+python scripts/voice/voice_test.py --set-output HDMI
+```
+
+It says *"This is the robot speaker"* on the monitor.
+
+**4** — check:
+
+```bash
+python scripts/voice/voice_test.py --list
+```
+
+`*` next to HDMI under SPEAKERS, `*` next to the headset under MICROPHONES, and
+`Bluetooth mic ...: codec msbc, 16000 Hz` at the end.
+
+## 3.5 Voice checks
+
+**1** — the chain without a microphone (once per machine). Silent: it synthesises speech in
+memory and runs it through speech detection, Whisper and the colour parser:
+
+```bash
+python scripts/voice/voice_test.py --selftest
+```
+
+Must end with `wrong colour / false start: 0` and `speech detection misses: 0`. The
+`understood` count is informational — the synthetic voice says the words worse than you will.
+
+**2** — teach it YOUR voice (once per person and headset). Whisper expects textbook
+English; with an accent it writes *"hello"* for *yellow* and finds no colour. A voice
+profile matches what you say against your own earlier takes instead, so pronunciation does
+not matter — only that you say it the same way each time. English or Vietnamese (*vàng*,
+*xanh lá*), your choice:
+
+```bash
+python scripts/voice/voice_test.py --enroll
+```
+
+It asks for each colour 5 times, then 6 things that are **not** a colour — *hello*, *okay*,
+your name, a cough. Those are what stop a similar-sounding word from counting as a command,
+so say real, different things. It ends with `every take is recognised as itself` and writes
+`outputs/voice_profile.npz`, which everything below uses automatically. Enrol in the
+headset mode you will use (3.4) — a profile recorded at 16 kHz does not match 8 kHz audio.
+
+**3** — the real microphone, ten rounds (every session). It asks *"Say a color"* and says
+back what it understood; nothing moves:
+
+```bash
+python scripts/voice/voice_test.py --rounds 10 --csv outputs/voice_mic_test.csv
+```
+
+**10/10 before touching the robot.** Each round prints who decided:
+
+| `[...]` | meaning |
+|---|---|
+| `whisper + profile` | both agree — the strongest case |
+| `whisper` | Whisper read the colour; the profile was unsure |
+| `profile` | Whisper found no colour word; your profile recognised it |
+| `refused` | two colours, a correction (*"yellow, no, green"*), *red* (not on the table), no colour, or Whisper and profile disagree — **never guessed**, it asks again |
+
+With only green on the table, bare *xanh* means green. Vietnamese Whisper: add
+`--language vi`. Many refusals: headset mode first (3.4, 16000 Hz), then `--enroll` again.
+`peak ... vs threshold ...` barely above the threshold = the mic is too far or too quiet.
+
+## 3.6 Set the table
 
 - The jar in ONE place for the whole dataset — tape its outline on the table
 - Both cubes on the table in every episode, inside the reach you want to test
 - Cameras, lighting and the `front` view fixed, as in PART 1
 
-## 3.5 RECORD (master POWERED ON)
+## 3.7 RECORD (master POWERED ON)
 
-Power-on order, bus and checks exactly as 1.2 – 1.4. Then:
+Power-on order as in 1.2 — follower first, master second, wait 10 s. Then:
+
+```bash
+sudo bash scripts/can/fix_can.sh --can $CAN
+```
+
+```bash
+python scripts/check/view_cameras.py 30
+```
+
+```bash
+python scripts/check/motor_faults.py --can $CAN
+```
+
+```bash
+python scripts/check/preflight.py --teleop --can $CAN
+```
+
+`~30 fps`, 6/6 clean, `ALL PASS` — as in 1.4. Then record:
 
 ```bash
 python scripts/record/record_colors.py \
@@ -954,21 +986,22 @@ episode: pick YELLOW into the jar, go home   "yellow cube"          Space = epis
 reset: move BOTH cubes somewhere new         "New layout. Shuffle the cubes. Next, ..."
 ```
 
-- **Put the picked cube back exactly where it was** — the two episodes of a layout must
-  start from the same picture; only the prompt differs. That is what forces the policy to
-  read the prompt instead of learning "the cube over there"
-- The colour order is shuffled per layout, so the first cube is not always the same colour
+- **Put the picked cube back exactly where it was** — the two episodes of a layout must start
+  from the same picture; only the prompt differs. That is what forces the policy to read the
+  prompt instead of learning "the cube over there"
 - Move both cubes to genuinely new places for every layout: 50 layouts = 50 positions to
   learn from, and the positions the rollout will see must be among them
+- The colour order is shuffled per layout, so the first cube is not always the same colour
 - Keys: `Space` end the phase · `r` re-record (same colour) · `q` stop and save ·
-  `1` = the next episode is yellow, `2` = green, instead of the plan — only to fix a mistake
-- Continue another day: **the same command + `--resume=true`**. The plan carries on from
-  the next episode; if it stopped mid-layout, set the table as that layout was
+  `1` = next episode yellow, `2` = green, instead of the plan — only to fix a mistake
+- Continue another day: **the same command + `--resume=true`**. The plan carries on from the
+  next episode; if it stopped mid-layout, set the table as that layout was
 - Every episode complete, as in 1.5: open → approach → grasp → lift → jar → **RELEASE** → home
+- End-of-session cadence **≥ 29.5 Hz**, as in 1.5
 
 When it stops it prints the per-colour count (next section).
 
-## 3.6 Check the dataset
+## 3.8 Check the dataset
 
 Per colour and per layout:
 
@@ -976,87 +1009,107 @@ Per colour and per layout:
 python scripts/check/check_dataset_colors.py $REPO
 ```
 
-Every colour within 20 % of the others, and `every complete layout has one episode of each
+Both colours within 20 % of each other, and `every complete layout has one episode of each
 colour`. Then grasp / release / lengths, as in 1.6:
 
 ```bash
 python scripts/check/check_dataset.py $REPO
 ```
 
-Note its `max` episode length: it sizes `--duration` in 3.9.
-
-By eye — pick episodes of different colours:
+Note its **max** episode length: it sizes `--duration` in 3.11. By eye, one episode of each
+colour:
 
 ```bash
 lerobot-dataset-viz --repo-id=$REPO --episode-index=0
 ```
 
-**Train early once.** After ~20 layouts (40 episodes), run 3.7 with `--steps=4384` and try
-3.9. If the arm heads for the same cube whatever you say, the prompt is not being read —
-fix the recording (same picture within a layout) before recording 60 more.
+**Train early once.** After ~20 layouts (40 episodes), train 5,000 steps (3.9 with
+`--steps=5000`) and try 3.11. If the arm heads for the same cube whatever you say, the prompt
+is not being read — fix the recording (same picture within a layout) before recording more.
 
-## 3.7 TRAIN — SmolVLA
-
-Steps = `16.7 × frames ÷ batch_size`, as in 1.7 — here at batch 64:
-
-| episodes | frames (14 s each) | steps @ batch 64 |
-|---|---|---|
-| 40 | 16,800 | 4,384 |
-| **100** | **42,000** | **10,959** |
-| 140 | 58,800 | 15,343 |
-
-`check_dataset_colors.py` prints the frame-based number for batch 8; divide it by 8.
+## 3.9 TRAIN — SmolVLA
 
 ```bash
-lerobot-train \
-  --policy.path=lerobot/smolvla_base \
+lerobot-train --policy.path=lerobot/smolvla_base \
   --policy.push_to_hub=false --policy.device=cuda \
-  --dataset.repo_id=$REPO \
-  --rename_map="$SMOLVLA_RENAME" \
+  --dataset.repo_id=$REPO --rename_map="$SMOLVLA_RENAME" \
   --output_dir=outputs/smolvla_colors \
-  --batch_size=64 --steps=10959 \
+  --batch_size=64 --steps=30000 --save_freq=5000 \
   --num_workers=4 --wandb.enable=false
 ```
 
+- **30,000 steps, not the 16.7-epoch rule of PART 1.** SmolVLA's learning rate decays over
+  30,000 steps (`cosine_decay_with_warmup`, `num_decay_steps: 30000`); stopped before that it
+  is still learning fast and shakes. Measured on this rig: 9,371 steps (16.7 epochs of 100
+  episodes) scored **10.7× — will shake**
+- `--save_freq=5000` keeps a checkpoint every 5,000 steps, so 3.10 can pick the smoothest
 - `--policy.path=` fine-tunes the pre-trained model; `--policy.type=smolvla` would start from
   random weights
 - The first run downloads `smolvla_base` and SmolVLM2 (~2 GB) into `~/.cache/huggingface`
-- The log line `step:... step_s:` is seconds per step: × steps = the run time. The SmolVLA
-  authors quote ~4 h for 20,000 steps on one A100
-- `CUDA out of memory`: `--batch_size=32` and double `--steps`
+- The log line `step:... step_s:` is seconds per step: × 30,000 = the run time
+- `CUDA out of memory`: `--batch_size=32`, same `--steps`
 
-## 3.8 Smoothness — MANDATORY
+**Stopped early, or trained too few steps?** Continue the same run — weights, optimizer,
+step count and learning-rate schedule all come back:
 
-The same check as 1.8; it reads the camera map out of the checkpoint itself:
+```bash
+lerobot-train \
+  --config_path=outputs/smolvla_colors/checkpoints/last/pretrained_model/train_config.json \
+  --resume=true --steps=30000 --save_freq=5000
+```
+
+Continuing to 30,000 ends where training from scratch to 30,000 would. Train from scratch
+(the first command, with a **new** `--output_dir`, e.g. `outputs/smolvla_colors_v2`) only
+when the dataset changed — episodes added, deleted or trimmed. An existing `--output_dir`
+without `--resume=true` is refused.
+
+## 3.10 Smoothness — MANDATORY before touching the robot
+
+The same check as 1.8; it reads the camera map out of the checkpoint itself. One episode of
+each colour — the last argument is an **episode index**:
 
 ```bash
 python scripts/check/check_smoothness.py \
   outputs/smolvla_colors/checkpoints/last/pretrained_model $REPO 50
 ```
 
-**≤ 5×** safe · **≥ 10×** train longer. Try an episode of each colour.
+```bash
+python scripts/check/check_smoothness.py \
+  outputs/smolvla_colors/checkpoints/last/pretrained_model $REPO 51
+```
 
-## 3.9 VOICE ROLLOUT (master POWERED OFF)
+**≤ 5×** safe · **≥ 10×** will shake. Borderline at `last`? Try an earlier one — replace
+`last` with `025000` or `020000` — and roll out the smoothest.
 
-Master off by its switch, wait 10 s, then the three checks of 1.9:
+## 3.11 VOICE ROLLOUT (master POWERED OFF)
+
+Master off **by its switch**, wait 10 s, then the three checks of 1.9:
 
 ```bash
 python scripts/can/bus_scan.py 5 --can $CAN
 ```
 
+`0x2A1 = 200/s`, control = 0.
+
 ```bash
 python scripts/check/motor_faults.py --can $CAN
 ```
+
+6/6 clean.
 
 ```bash
 python scripts/check/preflight.py --teleop --can $CAN
 ```
 
-**Between turns the arm returns to the pose it is in when the script starts.** Start it
-where the demonstrations started — the home pose the master held at the start of every
-episode.
+`ALL PASS`. Headset in microphone mode (3.4) — check it once more:
 
-Put both cubes out, then:
+```bash
+python scripts/voice/voice_test.py --list | tail -2
+```
+
+`codec msbc, 16000 Hz`. **Between turns the arm returns to the pose it is in when the
+script starts**: start it where the demonstrations started — the home pose the master held
+at the start of every episode. Put both cubes out, then:
 
 ```bash
 python scripts/deploy/voice_rollout.py \
@@ -1073,20 +1126,70 @@ python scripts/deploy/voice_rollout.py \
   --voice.mic=bluez
 ```
 
-- It says *"Ready"*, then *"Say a color"*. Say one; it answers *"green cube"* and the arm goes
-- It uses `outputs/voice_profile.npz` when it exists (3.2 step 7) — the log line `voice :`
-  says which. `--voice.profile=none` = Whisper only
-- A turn lasts `--duration` seconds — the dataset's **max** episode length from 3.6, plus a
-  few seconds. Then the arm returns to its start pose and it asks again
-- **Nothing you say while the arm moves is taken** — it listens only when the arm is home
+How a turn goes:
+
+```
+"Ready"                          models loaded, arm connected
+"Say a color"                    it listens -- ONLY now
+you: "yellow"                    or "put the yellow cube in the jar"
+"yellow cube"                    it understood; the arm goes
+... --duration seconds ...       the policy runs, then the arm returns to its start pose
+"Say a color"                    next turn
+```
+
+- Say the colour **after** *"Say a color"*. Nothing said while the arm moves is taken
+- *"Sorry, say one color"* = refused (unclear, two colours, a correction): say it again
 - Say *"stop"* while it listens to end; `Ctrl+C` stops it at any moment
+- `--duration` = the dataset's **max** episode length from 3.8, plus a few seconds
 - No `--interactive`, no `--task`: the voice loop is the interactive part and sets the task
 - Every turn is appended to `outputs/voice_runs.csv`: what was heard, the colour, the times
-- Stutters at every chunk boundary (every 1.67 s)? Add
-  `--inference.type=rtc --inference.rtc.execution_horizon=10`. Measured here, SmolVLA's
-  inference takes ~90 ms per 50-action chunk on the RTX 5090, which `sync` absorbs
+- Judders at every chunk boundary (every 1.67 s)? Add
+  `--inference.type=rtc --inference.rtc.execution_horizon=10`. It smooths the joins; it does
+  not fix a model that 3.10 says will shake
 
-## 3.10 Evaluation — 10 turns
+## 3.12 The headset dropped
+
+**The audio link failed, the headset is still connected.** The script notices — 3 s of pure
+digital silence — says *"Microphone lost. Reconnecting."* and reopens the microphone by
+itself. Wait for it, then say the colour again.
+
+**The headset disconnected.** `Ctrl+C`, then:
+
+```bash
+bluetoothctl connect XX:XX:XX:XX:XX:XX
+```
+
+```bash
+python scripts/voice/voice_test.py --headset T14
+```
+
+```bash
+python scripts/voice/voice_test.py --set-output HDMI
+```
+
+```bash
+python scripts/voice/voice_test.py --rounds 3
+```
+
+3/3, then the rollout command of 3.11 again. Drops keep coming back: charge the headset, sit
+nearer the Bluetooth adapter, and keep a USB Bluetooth dongle off the hub of the CAN adapters.
+A wired or USB microphone never drops: `--voice.mic=<its name from --list>`.
+
+## 3.13 After every run
+
+```bash
+ip -details -statistics link show $CAN | grep -A1 re-started
+```
+
+bus-off must still be 0.
+
+```bash
+python scripts/check/motor_faults.py --can $CAN
+```
+
+No joint faulted. As in 1.10: a clean log does not prove the commands arrived.
+
+## 3.14 Evaluation — 10 turns
 
 Ten turns, **5 yellow – 5 green**, order shuffled, and the cube positions changed between
 turns (the jar stays). Write the order down before starting, e.g.:
@@ -1095,7 +1198,7 @@ turns (the jar stays). Write the order down before starting, e.g.:
 green  yellow  yellow  green  yellow  green  green  yellow  green  yellow
 ```
 
-Add two flags to the command in 3.9:
+Add two flags to the command in 3.11:
 
 ```bash
   --voice.turns=10 \
@@ -1117,22 +1220,42 @@ It ends with the score table. Recognition errors need no key: a refused command 
 starts a turn and is logged in the CSV as `refused: ...`, and a misheard colour shows up as
 `heard` ≠ what you said.
 
-## 3.11 Flag reference
+## 3.15 Rollout checklist
+
+```
+[ ] Master arm POWERED OFF -- by its switch
+[ ] Waited 10 s after powering the follower on
+[ ] source env_all.sh  AND  source scripts/can/can_env.sh  AND  the 3.3 variables
+[ ] sudo bash scripts/can/fix_can.sh --can $CAN
+[ ] motor_faults  -> 6/6 clean
+[ ] preflight     -> ALL PASS, including "TX path healthy"
+[ ] check_smoothness -> <= 5x, both colours
+[ ] voice_test.py --headset T14  -> codec msbc, 16000 Hz
+[ ] voice_test.py --set-output HDMI  -> heard on the monitor
+[ ] voice_test.py --rounds 3  -> 3/3
+[ ] Arm at the start pose, both cubes out, workspace clear
+[ ] After the run: bus-off still 0, no joint faulted
+```
+
+## 3.16 Flag reference
 
 | flag | value | why |
 |---|---|---|
 | `--policy.path` (train) | `lerobot/smolvla_base` | fine-tune; `--policy.type=smolvla` starts from scratch |
 | `--rename_map` | `$SMOLVLA_RENAME` | **train and rollout**: smolvla_base names its cameras camera1/2/3. Missing at rollout → `Visual feature mismatch` |
+| `--steps` | `30000` | SmolVLA's learning-rate schedule length; 9,371 measured 10.7× (shakes) |
+| `--save_freq` | `5000` | checkpoints to pick the smoothest from |
 | `--batch_size` | `64` | SmolVLA's reference setting; 32 if out of memory |
 | `--duration` | dataset max + a few s | the length of ONE turn in voice_rollout |
 | `--return_to_initial_position` | `true` | also go home at the end of the session |
-| `--voice.mic` | part of the headset's name | default: PipeWire's default microphone |
-| `--voice.profile` | `outputs/voice_profile.npz` | your enrolled voice (3.2 step 7); `none` = Whisper only |
-| `--voice.model` | `openai/whisper-small` | `openai/whisper-large-v3-turbo` is bigger; compare both with 3.2 step 7 |
+| `--voice.mic` | part of the mic's name | default: PipeWire's default microphone |
+| `--voice.profile` | `outputs/voice_profile.npz` | your enrolled voice (3.5); `none` = Whisper only |
+| `--voice.model` | `openai/whisper-small` | `openai/whisper-large-v3-turbo` is bigger; compare both with 3.5 step 3 |
 | `--voice.language` | `en` | `vi` for Vietnamese colour words |
 | `--voice.turns` | `0` | stop after N turns; 0 = until "stop" |
-| `--voice.score` | `false` | ask for each turn's result (3.10) |
+| `--voice.score` | `false` | ask for each turn's result (3.14) |
 | `--plan_seed` (record) | `0` | the colour order; keep it the same across `--resume` |
+| `voice_test.py --headset` | headset name | 16 kHz microphone mode, picked by name |
 
 ---
 

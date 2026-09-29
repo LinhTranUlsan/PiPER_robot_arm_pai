@@ -254,6 +254,11 @@ def main() -> int:
             print(f"  voice      : Whisper only (no {ppath}; voice_test.py --enroll records one)")
     mic = Mic(target=target)
 
+    # Camera configs register their --robot.cameras `type:` names on import, exactly as in
+    # lerobot_rollout.py; without these, `type: opencv` is "no choice class".
+    import importlib
+    for mod in ("lerobot.cameras.opencv", "lerobot.cameras.realsense", "lerobot.cameras.zmq"):
+        importlib.import_module(mod)
     from lerobot.configs import parser
     from lerobot.rollout import LinkedEvent, RolloutConfig, build_rollout_context, create_strategy
     from lerobot.rollout.controller import RolloutController, RolloutEvent
