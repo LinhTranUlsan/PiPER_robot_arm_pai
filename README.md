@@ -16,6 +16,7 @@ PiPER_robot_arm_pai/
 │   │                   check_dataset.py · check_dataset_multi.py · check_dataset_bimanual.py
 │   │                   check_smoothness.py · check_smoothness_bimanual.py
 │   │                   compare_arms.py · compare_firmware.py
+│   ├── dataset/        trim_idle.py
 │   └── deploy/         park_arm.py
 ├── patches/            one patch applied to the LeRobot checkout
 ├── env.sh.example      camera paths template -> bootstrap.sh copies it to env.sh
@@ -264,7 +265,7 @@ lerobot-record \
 - Vary only the **object position** (4×5 grid over ~20×30 cm); keep cameras and lighting fixed
 - End-of-session cadence must be **≥ 29.5 Hz**, `ticks over budget` near zero
 
-## 1.6 Check the dataset
+## 1.6 Check and clean the dataset
 
 By eye:
 
@@ -288,6 +289,32 @@ lerobot-edit-dataset \
   --repo_id=$USER/piper_right --new_repo_id=$USER/piper_right_clean \
   --operation.type=delete_episodes --operation.episode_indices='[type your numbers]'
 ```
+
+**Cut the still period at the start of every episode.** Between pressing `space` and the
+master arm actually turning, the operator reaches for it and takes up the slack. Those frames
+teach the policy that holding the start pose is correct, and at rollout it reproduces exactly
+that — the arm waits, or never leaves the pose at all, because a command equal to the measured
+position leaves the state unchanged and nothing can break the loop.
+
+Measure first:
+
+```bash
+python scripts/dataset/trim_idle.py $USER/piper_right
+```
+
+```
+idle at episode start  median  69 f = 2.30 s   over 0.5 s: 99/100
+```
+
+Under 10 frames is fine. Above that, cut — a new dataset is written and the original is left
+alone:
+
+```bash
+python scripts/dataset/trim_idle.py $USER/piper_right --write
+```
+
+It ends by printing the trimmed frame count and the exact `lerobot-train` line, step count
+included. Train on `$USER/piper_right_trim` from there on.
 
 ## 1.7 TRAIN
 
@@ -622,7 +649,7 @@ lerobot-record \
 - Always the same order, every episode. The waiting arm must stay **completely still**
 - Cadence must still read **≥ 29.5 Hz** — 4 cameras plus 2 CAN buses is the heaviest config
 
-## 2.7 Check the dataset — per arm
+## 2.7 Check and clean the dataset — per arm
 
 ```bash
 python scripts/check/check_dataset_bimanual.py $REPO 1     # 1 pick-place cycle per arm
@@ -637,6 +664,32 @@ one arm never moved. This one splits by name and reports LEFT and RIGHT separate
                -> --duration=35
 Steps for 16.7 epochs (batch 8): 264,947
 ```
+
+**Cut the still period at the start of every episode.** Between pressing `space` and the
+master arm actually turning, the operator reaches for it and takes up the slack. Those frames
+teach the policy that holding the start pose is correct, and at rollout it reproduces exactly
+that — the arm waits, or never leaves the pose at all, because a command equal to the measured
+position leaves the state unchanged and nothing can break the loop.
+
+Measure first:
+
+```bash
+python scripts/dataset/trim_idle.py $REPO
+```
+
+```
+idle at episode start  median  59 f = 1.97 s   over 0.5 s: 148/150
+```
+
+Under 10 frames is fine. Above that, cut — a new dataset is written and the original is left
+alone:
+
+```bash
+python scripts/dataset/trim_idle.py $REPO --write
+```
+
+It ends by printing the trimmed frame count and the exact `lerobot-train` line, step count
+included. Train on `${REPO}_trim` from there on.
 
 ## 2.8 TRAIN
 
