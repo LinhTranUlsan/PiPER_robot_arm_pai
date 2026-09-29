@@ -296,14 +296,10 @@ teach the policy that holding the start pose is correct, and at rollout it repro
 that — the arm waits, or never leaves the pose at all, because a command equal to the measured
 position leaves the state unchanged and nothing can break the loop.
 
-Measure first:
+Measure first (must try):
 
 ```bash
 python scripts/dataset/trim_idle.py $USER/piper_right
-```
-
-```
-idle at episode start  median  69 f = 2.30 s   over 0.5 s: 99/100
 ```
 
 Under 10 frames is fine. Above that, cut — a new dataset is written and the original is left
@@ -332,7 +328,7 @@ Steps = `16.7 × frames ÷ batch_size`. Run them one after another, never in par
 batch 16 halves the step count but each step costs twice as much. Batch 8 is the safer choice
 on a small dataset, because it takes twice as many optimiser steps to cover the same epochs.
 
-> **Trimmed the dataset** with `python scripts/dataset/trim_idle.py $USER/piper_right --write`?
+**Trimmed the dataset** with `python scripts/dataset/trim_idle.py $USER/piper_right --write`?
 > Two changes in the command below:
 >
 > - `--dataset.repo_id=$USER/piper_right` → `--dataset.repo_id=$USER/piper_right_trim`
@@ -686,10 +682,6 @@ Measure first:
 python scripts/dataset/trim_idle.py $REPO
 ```
 
-```
-idle at episode start  median  59 f = 1.97 s   over 0.5 s: 148/150
-```
-
 Under 10 frames is fine. Above that, cut — a new dataset is written and the original is left
 alone:
 
@@ -712,7 +704,7 @@ included. Train on `${REPO}_trim` from there on.
 668 frames per episode (22.3 s), 4 cameras. Episodes run about twice as long as single-arm
 and carry a fourth camera, so the same episode count costs roughly 3× the time.
 
-> **Trimmed the dataset** with `python scripts/dataset/trim_idle.py $REPO --write`?
+**Trimmed the dataset** with `python scripts/dataset/trim_idle.py $REPO --write`?
 > Two changes in the command below:
 >
 > - `--dataset.repo_id=$REPO` → `--dataset.repo_id=${REPO}_trim`
