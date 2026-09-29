@@ -6,6 +6,7 @@
 #     conda install -y -c conda-forge ffmpeg
 #     bash scripts/setup/install.sh              # ACT + Diffusion Policy
 #     bash scripts/setup/install.sh --pi0        # also pi0 (VLA)
+#     bash scripts/setup/install.sh --smolvla    # also SmolVLA + Whisper (PART 3, voice)
 #     bash scripts/setup/install.sh --pinned     # exact versions from requirements-pinned.txt
 #     bash scripts/setup/install.sh --bimanual   # also the two-cluster plugins
 #
@@ -19,9 +20,10 @@ PIPER_SDK_COMMIT="c9e8a28174e71eeaac448593cb65f8ab258a92fe"
 LEROBOT_DIR="${LEROBOT_DIR:-$(dirname "$REPO")/lerobot}"
 PIPER_SDK_DIR="${PIPER_SDK_DIR:-$(dirname "$REPO")/piper_sdk}"
 
-WITH_PI0=0; WITH_PINNED=0; WITH_BIMANUAL=0
+WITH_PI0=0; WITH_SMOLVLA=0; WITH_PINNED=0; WITH_BIMANUAL=0
 for a in "$@"; do case "$a" in
   --pi0) WITH_PI0=1 ;;
+  --smolvla) WITH_SMOLVLA=1 ;;
   --pinned) WITH_PINNED=1 ;;
   --bimanual) WITH_BIMANUAL=1 ;;
   *) echo "unknown flag: $a" >&2; exit 1 ;;
@@ -87,9 +89,13 @@ if [ "$WITH_PINNED" = 1 ]; then
   echo "   exact versions from requirements-pinned.txt"
   pip install -q -r "$REPO/requirements-pinned.txt"
   pip install -q -e "$LEROBOT_DIR" --no-deps
+  # num2words is SmolVLA's only dependency that the pinned list does not carry.
+  [ "$WITH_SMOLVLA" = 1 ] && pip install -q "num2words>=0.5.14,<0.6.0"
 else
   EXTRAS="core_scripts,training,diffusion"
   [ "$WITH_PI0" = 1 ] && EXTRAS="$EXTRAS,pi"
+  # SmolVLA pulls in transformers, which the voice scripts also use for Whisper.
+  [ "$WITH_SMOLVLA" = 1 ] && EXTRAS="$EXTRAS,smolvla"
   echo "   lerobot[$EXTRAS]"
   pip install -q -e "$LEROBOT_DIR[$EXTRAS]"
   pip install -q python-can
@@ -129,7 +135,7 @@ if [ "$WITH_BIMANUAL" = 1 ]; then
 fi
 
 say "6. Verify"
-WANT_BIMANUAL=$WITH_BIMANUAL python - <<'PY'
+WANT_BIMANUAL=$WITH_BIMANUAL WANT_SMOLVLA=$WITH_SMOLVLA python - <<'PY'
 import os, sys
 from lerobot.utils.import_utils import register_third_party_plugins
 register_third_party_plugins()
@@ -147,6 +153,9 @@ if os.environ.get("WANT_BIMANUAL") == "1":
 missing = (need_r - set(r)) | (need_t - set(t))
 if missing:
     sys.exit(f"   ERROR: plugins not discovered: {sorted(missing)}")
+if os.environ.get("WANT_SMOLVLA") == "1":
+    import transformers, num2words  # noqa: F401  SmolVLA's extras; Whisper runs on transformers
+    print(f"   smolvla: transformers {transformers.__version__}")
 arch = torch.cuda.get_arch_list()[-1] if torch.cuda.is_available() else "-"
 print(f"   torch  : {torch.__version__} | cuda {torch.cuda.is_available()} | {arch}")
 PY

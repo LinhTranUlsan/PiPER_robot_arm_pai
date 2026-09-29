@@ -8,7 +8,10 @@ Empirical thresholds on this rig:
 
 READ-ONLY. Writes nothing, never touches the robot.
 """
+import json
 import sys
+from pathlib import Path
+
 import numpy as np
 import torch
 from lerobot.configs.policies import PreTrainedConfig
@@ -19,8 +22,28 @@ from lerobot.policies.factory import make_policy
 CK = sys.argv[1]
 DSID = sys.argv[2]
 EP = int(sys.argv[3]) if len(sys.argv) > 3 else 50
-RENAME = None
-if "pi0" in CK:
+
+
+def saved_rename_map(ck: str) -> dict | None:
+    """The camera rename the checkpoint was TRAINED with, read from its own preprocessor.
+
+    A policy fine-tuned from a base model (pi0, SmolVLA) keeps the base model's camera names
+    -- camera1/2/3 for smolvla_base -- and was trained through --rename_map. Replaying it
+    without the same map fails the visual-feature check, and a hand-written map that differs
+    feeds each image to the wrong slot. The checkpoint stores the exact one; use that.
+    """
+    try:
+        steps = json.loads((Path(ck) / "policy_preprocessor.json").read_text())["steps"]
+    except (OSError, KeyError, ValueError):
+        return None
+    for s in steps:
+        if s.get("registry_name") == "rename_observations_processor":
+            return s.get("config", {}).get("rename_map") or None
+    return None
+
+
+RENAME = saved_rename_map(CK)
+if RENAME is None and "pi0" in CK:
     RENAME = {"observation.images.front": "observation.images.base_0_rgb",
               "observation.images.wrist": "observation.images.left_wrist_0_rgb"}
 

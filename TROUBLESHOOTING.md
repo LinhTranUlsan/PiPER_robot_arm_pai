@@ -554,6 +554,88 @@ To silence it: `--display_compressed_images=true`
 pkill rerun
 ```
 
+## Voice (PART 3)
+
+### `bluetoothctl`: `No default controller available`
+
+The Bluetooth adapter never finished starting. On the reference rig it is the MediaTek
+MT7925 Wi-Fi/Bluetooth card, and the kernel log shows why:
+
+```bash
+journalctl -k -b | grep -i -E "btmtk|hci0"
+```
+
+```
+Bluetooth: hci0: HW/SW Version: 0x00000000, Build Time: ...
+Bluetooth: hci0: Execution of wmt command timed out
+Bluetooth: hci0: Failed to send wmt func ctrl (-110)
+```
+
+`0x00000000` = the firmware never loaded, so `hci0` exists but bluetoothd has no
+controller. `rfkill list` still reads *not blocked*, which is why this looks like a software
+problem. In order of cost:
+
+```bash
+sudo modprobe -r btusb && sleep 2 && sudo modprobe btusb && sleep 3 && bluetoothctl show | head -3
+```
+
+Still nothing: **power the machine OFF** — shut down and unplug it for 30 s. A reboot keeps
+the card powered and does not reset its firmware state. Still nothing after that: update
+`linux-firmware`, or use a USB Bluetooth dongle, or a USB/jack headset — the voice scripts
+take any PipeWire microphone (`--voice.mic=<name>`).
+
+### The headset is connected, but no microphone appears
+
+It is in the music (A2DP) profile, which has no microphone. `voice_test.py --list` then
+shows it only under SPEAKERS. Pick it in *Settings → Sound → Input*: that switches it to the
+headset (HFP) profile and a `bluez_input...` microphone appears. Mono and 16 kHz is normal
+in that profile, and all Whisper needs.
+
+### The robot talks in the headset, not on the monitor
+
+The headset took over as the default speaker when it connected. Set it back — after
+connecting:
+
+```bash
+python scripts/voice/voice_test.py --set-output HDMI
+```
+
+### It keeps answering "Sorry, say one color"
+
+That is a refusal, never a wrong guess — see why in the line above it (`heard '...'` and
+`-> refused: ...`). Run the microphone test, which prints the level of every utterance:
+
+```bash
+python scripts/voice/voice_test.py --rounds 10 --csv outputs/voice_mic_test.csv
+```
+
+| symptom | fix |
+|---|---|
+| `nobody spoke within 15s` while you spoke | wrong microphone: `--list`, then `--set-input` or `--voice.mic` |
+| `peak` barely above `threshold` | mic too far or muted; headset mic boom closer |
+| heard text wrong (`hello` for *yellow*) — accent | **enrol your voice**: `voice_test.py --enroll` (README 3.2 step 7); then the profile recognises it whatever Whisper writes |
+| `profile: -  too far from every take` | said differently from the enrolment — `--enroll` again, the way you actually say it |
+| `conflict` | Whisper and your profile disagree: the word is between the two — say it more clearly |
+| `heard a correction` | a *no* / *wait* / *không* in the sentence: say just the colour |
+
+### `Visual feature mismatch between policy and robot hardware` at rollout
+
+`--rename_map` is missing from the rollout command. A SmolVLA fine-tune keeps the base
+model's camera names (`camera1/2/3`); the map must be passed at rollout exactly as at
+training — `--rename_map="$SMOLVLA_RENAME"` (README 3.3).
+
+### The arm always goes for the same cube, whatever colour is said
+
+The policy is not reading the prompt. Check the dataset first:
+
+```bash
+python scripts/check/check_dataset_colors.py $REPO
+```
+
+Uneven colours, or layouts that are not one-of-each, teach a favourite. So does a picked
+cube not put back where it was: the four episodes of a layout must start from the same
+picture, so that only the prompt tells them apart.
+
 ---
 
 ## When stuck
